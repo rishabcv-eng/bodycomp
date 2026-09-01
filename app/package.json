@@ -1,0 +1,13 @@
+{
+  "name": "bodycomp-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node parity_test.mjs && node parity_silhouette.mjs && node scan_score_test.mjs && node scan_steps_test.mjs && node overlay_test.mjs && node plan_test.mjs",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18"
+  }
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self test</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  pre { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.8rem; white-space:pre-wrap;
+        background:var(--surface); border:1px solid var(--line); border-radius:3px; padding:16px; }
+  .verdict { font-family:Archivo,sans-serif; font-size:1.4rem; font-weight:700; padding:14px 18px;
+             border-radius:4px; margin-top:16px; }
+  .pass { background:var(--accent-soft); color:var(--accent); }
+  .fail { background:var(--bad-soft); color:var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <span class="eyebrow">Verification</span>
+    <h1>Browser vs Python</h1>
+    <p class="lede">Runs a known BodyM silhouette pair through the in-browser pipeline and
+    compares every number against what the Python models produced for the same input.</p>
+  </header>
+  <div id="verdict" class="verdict">running...</div>
+  <pre id="out"></pre>
+</div>
+<script type="module" src="js/selftest.js"></script>
+</body>
+</html>

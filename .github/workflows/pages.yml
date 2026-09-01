@@ -1,0 +1,73 @@
+name: Deploy app to GitHub Pages
+
+# The repo deliberately does not carry the 55 MB of MediaPipe runtime and model
+# files - they are downloaded, not authored. This workflow restores them, so the
+# published site is complete while the repository stays small and readable.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+
+      - name: Vendor the MediaPipe runtime
+        working-directory: app
+        run: |
+          mkdir -p public/vendor
+          cp node_modules/@mediapipe/tasks-vision/vision_bundle.mjs public/vendor/
+          cp -r node_modules/@mediapipe/tasks-vision/wasm public/vendor/wasm
+
+      - name: Fetch MediaPipe models
+        working-directory: app/public
+        run: |
+          mkdir -p mp
+          base=https://storage.googleapis.com/mediapipe-models
+          curl -sSfL -o mp/selfie_multiclass.tflite \
+            "$base/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite"
+          curl -sSfL -o mp/selfie_segmenter.tflite \
+            "$base/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite"
+          curl -sSfL -o mp/pose_landmarker_lite.task \
+            "$base/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+
+      # Guards the deploy: the tree walker and the silhouette extractor must
+      # still agree with the Python models before anything is published.
+      - name: Run tests
+        working-directory: app
+        run: node parity_test.mjs && node scan_score_test.mjs && node scan_steps_test.mjs && node overlay_test.mjs && node plan_test.mjs
+
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

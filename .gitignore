@@ -1,0 +1,27 @@
+# Datasets - large, and not ours to redistribute.
+# Rebuild with: src/download_nhanes.sh and python src/download_bodym.py
+data/
+
+# Trained artefacts that are regenerable from the data (33 MB of pickles).
+# Rebuild with: python src/train.py && python src/train_stage1.py
+models/*.pkl
+models/web_models_python.pkl
+
+# MediaPipe models are downloaded, not authored. The CI workflow fetches them.
+models/mediapipe/
+app/public/mp/
+
+# Vendored MediaPipe runtime - restored by `npm install` + the copy step in CI.
+app/public/vendor/
+node_modules/
+
+# Large regenerable test fixture (8 MB of raw masks).
+# Rebuild with the dump step in src/export_web_models.py
+app/parity_masks.bin
+
+# Scratch
+*.log
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc

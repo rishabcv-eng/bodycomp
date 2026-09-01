@@ -1,0 +1,18 @@
+{
+  "bodyfat_pct": {
+    "mae": 2.704143796927511,
+    "conformal_q": 1.175348657749577,
+    "coverage_before": 65.56701030927834,
+    "coverage_after": 80.45360824742268,
+    "width_before": 6.442423515053441,
+    "width_after": 8.793120830552592
+  },
+  "alm_kg": {
+    "mae": 1.2690302652281984,
+    "conformal_q": 0.4587803404818587,
+    "coverage_before": 68.59221223791185,
+    "coverage_after": 81.42918271287975,
+    "width_before": 3.198837961615447,
+    "width_after": 4.116398642579163
+  }
+}

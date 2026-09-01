@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Body Composition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">On-device estimate &middot; validated against DXA</span>
+    <h1>Body composition from a phone scan</h1>
+    <p class="lede">Tell us your height, then turn slowly in front of the camera for five seconds.
+    Everything runs inside this browser tab &mdash; no video, photo or measurement is ever uploaded.</p>
+    <p id="status" class="status working">Starting up...</p>
+  </header>
+
+  <!-- ---------- step 1: details, asked BEFORE capture ---------- -->
+  <section class="panel">
+    <h2>1 &middot; About you</h2>
+    <p class="hint">Your height is the ruler. The camera cannot know how big you are, so every
+    measurement is scaled from the height you give here &mdash; make it accurate.</p>
+    <div class="fields">
+      <label class="field">
+        <span>Height</span>
+        <span class="input-row"><input type="number" id="height" min="120" max="220" step="0.5" value="175"><em>cm</em></span>
+      </label>
+      <label class="field">
+        <span>Weight</span>
+        <span class="input-row"><input type="number" id="weight" min="30" max="250" step="0.1" value="72"><em>kg</em></span>
+      </label>
+      <label class="field">
+        <span>Age</span>
+        <span class="input-row"><input type="number" id="age" min="18" max="80" step="1" value="24"><em>years</em></span>
+      </label>
+      <label class="field">
+        <span>Sex</span>
+        <span class="input-row"><select id="sex"><option value="male">Male</option><option value="female">Female</option></select></span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ---------- step 2: capture ---------- -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>2 &middot; Capture</h2>
+      <div class="modes" role="tablist">
+        <button class="mode on" id="mode-scan" role="tab" aria-selected="true">Scan</button>
+        <button class="mode" id="mode-upload" role="tab" aria-selected="false">Upload photos</button>
+      </div>
+    </div>
+
+    <!-- scan -->
+    <div id="pane-scan">
+      <p class="hint">Prop the phone up so your whole body fits. The app walks you through three
+      positions, confirming each before moving on &mdash; nothing is rushed.</p>
+      <p class="warnbox"><b>Wear fitted clothing.</b> The outline <em>is</em> the measurement, so
+      fabric standing off your body is read as body. Measured on this pipeline: a normal t-shirt
+      adds about <b>+5 cm to the waist and +1.6 body-fat points</b>; a loose hoodie adds
+      +9&ndash;12 cm. Bare torso or close-fitting clothes give the honest number.</p>
+
+      <ol class="steps" id="steps"></ol>
+
+      <div class="stage-wrap" id="stage-wrap" hidden>
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+      </div>
+
+      <div class="camctl" id="camctl" hidden>
+        <label class="zoomrow" id="zoomrow" hidden>
+          <span>Zoom</span>
+          <input type="range" id="zoom" min="1" max="4" step="0.1" value="1">
+          <em id="zoomval">1.0&times;</em>
+        </label>
+        <label class="lensrow" id="lensrow" hidden>
+          <span>Lens</span>
+          <select id="lens"></select>
+        </label>
+        <p class="hint" id="camctl-hint">If your whole body will not fit, switch to a wider lens
+        rather than backing further away. Zoom does not affect accuracy &mdash; scale comes from your
+        height, not the camera.</p>
+      </div>
+
+      <p class="guide" id="guide" hidden></p>
+      <p class="diag" id="diag" hidden></p>
+      <p class="warnbox" id="stuck" hidden></p>
+
+      <div class="scan-actions">
+        <button class="run" id="camera-start">Turn on camera</button>
+        <button class="ghost" id="scan-finish" hidden>Finish with what I have</button>
+        <button class="ghost" id="camera-stop" hidden>Cancel</button>
+      </div>
+      <p class="hint">No camera to hand? <button class="linkish" id="sample">Run a sample body</button>
+      &mdash; a real scanned subject from the BodyM dataset, whose true tape measurements are known,
+      so you can see the output next to the right answer.</p>
+    </div>
+
+    <!-- upload fallback -->
+    <div id="pane-upload" hidden>
+      <p class="guide warn" id="upload-note" hidden></p>
+      <p class="hint">No camera? Add a front photo and a side photo instead. Same pipeline,
+      one frame per view rather than several. Stand square to the camera with your arms out
+      about 30&deg;, whole body in frame, plain background.</p>
+      <div class="shots">
+        <div class="shot">
+          <label class="drop" id="drop-front" for="file-front">
+            <span class="slot">Front view</span>
+            <span class="label" id="label-front">Tap to add a photo</span>
+          </label>
+          <input type="file" id="file-front" accept="image/*" hidden>
+          <canvas id="preview-front" class="preview"></canvas>
+        </div>
+        <div class="shot">
+          <label class="drop" id="drop-side" for="file-side">
+            <span class="slot">Side view</span>
+            <span class="label" id="label-side">Tap to add a photo</span>
+          </label>
+          <input type="file" id="file-side" accept="image/*" hidden>
+          <canvas id="preview-side" class="preview"></canvas>
+        </div>
+      </div>
+      <button id="run" class="run" disabled>Estimate body composition</button>
+    </div>
+  </section>
+
+  <section class="panel blocked" id="blocked" hidden>
+    <h2>Not usable yet</h2>
+    <p class="hint">The estimate is only shown when the capture checks pass. A bad capture would
+    produce a confident but wrong number.</p>
+    <ul id="issues" class="issues"></ul>
+  </section>
+
+  <!-- ---------- results ---------- -->
+  <section id="results" class="results" hidden>
+    <p class="sample-banner" id="sample-banner" hidden></p>
+    <div class="headline">
+      <div class="big">
+        <span class="k">Body fat</span>
+        <span class="v"><span id="bf-value">--</span><span class="u">%</span></span>
+        <span class="r" id="bf-range"></span>
+      </div>
+      <div class="big rose">
+        <span class="k">Arm + leg muscle</span>
+        <span class="v"><span id="alm-value">--</span><span class="u">kg</span></span>
+        <span class="r" id="alm-range"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Breakdown</h2>
+      <div class="derived">
+        <div><span class="k">Fat mass</span><span class="v" id="d-fat">--</span></div>
+        <div><span class="k">Fat-free mass</span><span class="v" id="d-lean">--</span></div>
+        <div><span class="k">Muscle index</span><span class="v" id="d-almi">--</span></div>
+        <div><span class="k">Muscle share</span><span class="v" id="d-musclepct">--</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Measurements read from your body</h2>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>Measurement</th><th>Estimate</th><th id="spread-head" hidden>Frame spread</th></tr></thead>
+          <tbody id="measure-body"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="qc-note"></p>
+    </div>
+
+    <div class="panel accuracy">
+      <h2>How much to trust this</h2>
+      <p class="hint" id="accuracy-note"></p>
+      <p class="hint">Accuracy drops for very lean bodies, where the training data is thinnest,
+      and the model tends to read about 1.4 points low for people of Asian descent &mdash; a known
+      limit of measuring body composition from body shape. Using several frames reduces random
+      error only; it does not remove that bias.</p>
+    </div>
+
+
+    <div class="panel" id="plan-panel">
+      <h2>3 &middot; Your plan</h2>
+      <p class="hint">Built from your <b>lean mass</b>, not your weight. Two people at the same
+      weight and height need different calories, and the scan is what tells them apart.</p>
+
+      <div class="fields three">
+        <label class="field">
+          <span>Goal</span>
+          <span class="input-row"><select id="p-goal">
+            <option value="cut">Lose fat</option>
+            <option value="recomp">Recomposition</option>
+            <option value="maintain">Maintain</option>
+            <option value="gain">Build muscle</option>
+          </select></span>
+        </label>
+        <label class="field">
+          <span>Activity</span>
+          <span class="input-row"><select id="p-activity">
+            <option value="sedentary">Desk job, little exercise</option>
+            <option value="light">Light, 1-3 days</option>
+            <option value="moderate" selected>Moderate, 3-5 days</option>
+            <option value="active">Hard, 6-7 days</option>
+            <option value="athlete">Physical job / twice daily</option>
+          </select></span>
+        </label>
+        <label class="field">
+          <span>Diet</span>
+          <span class="input-row"><select id="p-diet">
+            <option value="veg">Vegetarian</option>
+            <option value="nonveg">Non-vegetarian</option>
+          </select></span>
+        </label>
+      </div>
+
+      <ul class="flags" id="p-flags" hidden></ul>
+
+      <div class="derived" id="p-energy">
+        <div><span class="k">Daily calories</span><span class="v" id="p-kcal">--</span></div>
+        <div><span class="k">Protein</span><span class="v" id="p-pro">--</span></div>
+        <div><span class="k">Carbs</span><span class="v" id="p-carb">--</span></div>
+        <div><span class="k">Fat</span><span class="v" id="p-fat">--</span></div>
+      </div>
+      <p class="hint" id="p-energy-note"></p>
+
+      <h3 class="subhead">Where 12 weeks takes you</h3>
+      <div class="beforeafter">
+        <div class="ba">
+          <span class="k">Now</span>
+          <span class="v" id="p-now-bf">--</span>
+          <span class="r" id="p-now-rest"></span>
+        </div>
+        <div class="arrow" aria-hidden="true">&rarr;</div>
+        <div class="ba to">
+          <span class="k">Week 12</span>
+          <span class="v" id="p-then-bf">--</span>
+          <span class="r" id="p-then-rest"></span>
+        </div>
+      </div>
+      <p class="hint" id="p-proj-note"></p>
+
+      <h3 class="subhead">Training week</h3>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>Day</th><th>Focus</th><th>Session</th></tr></thead>
+          <tbody id="p-train"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="p-train-note"></p>
+
+      <h3 class="subhead">A day of food &mdash; <span id="p-diet-label"></span></h3>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>Meal</th><th>Food</th><th>Protein</th></tr></thead>
+          <tbody id="p-meals"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="p-meal-note"></p>
+
+      <p class="disclaimer" id="p-disclaimer"><b>General fitness guidance, not medical or dietetic
+      advice.</b> If you are pregnant, managing a health condition, or taking medication, talk to a
+      doctor or a registered dietitian before changing how you eat or train.</p>
+    </div>
+
+    <button class="ghost wide" id="again">Scan again</button>
+  </section>
+
+  <footer>
+    <p class="disclaimer"><b>Not a medical device.</b> This is a fitness and wellness estimate,
+    not a diagnosis. Do not use it to make clinical decisions.</p>
+    <p class="colophon">Trained on 11,701 DXA scans (NHANES 2011&ndash;2018) and 2,018 scanned
+    bodies (Amazon BodyM). Runs entirely on your device.</p>
+  </footer>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

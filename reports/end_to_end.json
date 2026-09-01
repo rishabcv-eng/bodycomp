@@ -1,0 +1,8 @@
+{
+  "full (uses NHANES limb lengths)|tape": 2.697420315807639,
+  "full (uses NHANES limb lengths)|testA (studio conditions)": 2.8235059280479438,
+  "full (uses NHANES limb lengths)|testB (harder conditions)": 2.96871991274064,
+  "photo-available features|tape": 2.708271941879827,
+  "photo-available features|testA (studio conditions)": 2.8360295249082164,
+  "photo-available features|testB (harder conditions)": 2.992164022466926
+}
