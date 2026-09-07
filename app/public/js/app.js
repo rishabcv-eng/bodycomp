@@ -4,7 +4,7 @@
 import { FilesetResolver, ImageSegmenter, PoseLandmarker } from "../vendor/vision_bundle.mjs";
 import { buildMask, qualityCheck } from "./mask.js";
 import { loadModels, analyse, analyseMany } from "./pipeline.js";
-import { ScanController, STEPS, TOLERANCE, HOLD_FRAMES } from "./scan.js";
+import { ScanController, STEPS, TOLERANCE, HOLD_MS, frameAssessment } from "./scan.js";
 import { buildPlan } from "./plan.js";
 
 const PERSON_CLASSES = [1, 2, 3, 4, 5]; // multiclass: 0 is background
@@ -149,6 +149,116 @@ function renderResults(out, qcs, profile = formValues()) {
   $("results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+/* ----------------------------------------------------------- camera check --- */
+
+const median = xs => {
+  if (!xs.length) return NaN;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const f2 = x => Number.isFinite(x) ? x.toFixed(2) : "  --";
+
+/** Five seconds of real measurement, reported as plain numbers. */
+async function runCameraCheck() {
+  const out = $("camreport");
+  const btn = $("camcheck");
+  btn.disabled = true;
+  out.hidden = false;
+  out.textContent = "Opening camera...";
+
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 } }, audio: false });
+  } catch (err) {
+    out.textContent = "Camera did not open: " + err.name + "\n" + cameraFailureMessage(err);
+    btn.disabled = false;
+    return;
+  }
+
+  const v = $("video");
+  $("stage-wrap").hidden = false;
+  v.srcObject = stream;
+  await v.play();
+
+  const DURATION = 5000;
+  const t0 = performance.now();
+  let frames = 0, seen = 0, lastTs = -1;
+  const m = { fill: [], minVisibility: [], clearance: [], tilt: [], spanRatio: [] };
+  const failCounts = {};
+
+  await new Promise(resolve => {
+    const loop = () => {
+      const now = performance.now();
+      if (now - t0 >= DURATION) return resolve();
+      requestAnimationFrame(loop);
+      if (v.readyState < 2) return;
+      let ts = now;
+      if (ts <= lastTs) ts = lastTs + 1;
+      lastTs = ts;
+      frames++;
+      let lm = null;
+      try { lm = poseVideo.detectForVideo(v, ts).landmarks?.[0] ?? null; } catch { return; }
+      if (!lm) return;
+      seen++;
+      const a = frameAssessment(lm, v.videoWidth, v.videoHeight, { assumeFacing: true });
+      for (const k of Object.keys(m)) if (Number.isFinite(a.metrics[k])) m[k].push(a.metrics[k]);
+      for (const issue of a.issues) failCounts[issue] = (failCounts[issue] || 0) + 1;
+      out.textContent = `measuring... ${Math.round((now - t0) / 100) / 10}s`;
+      // keep the overlay alive so the user sees something happening
+      const ctx = $("overlay").getContext("2d");
+      $("overlay").width = v.videoWidth; $("overlay").height = v.videoHeight;
+      ctx.clearRect(0, 0, v.videoWidth, v.videoHeight);
+    };
+    requestAnimationFrame(loop);
+  });
+
+  for (const tr of stream.getTracks()) tr.stop();
+  v.srcObject = null;
+  $("stage-wrap").hidden = true;
+
+  const secs = (performance.now() - t0) / 1000;
+  const fps = frames / secs;
+  const worst = Object.entries(failCounts).sort((x, y) => y[1] - x[1])[0];
+
+  const row = (label, value, need, ok) =>
+    `  ${label.padEnd(16)}${f2(value).padStart(6)}   ${need.padEnd(12)}${ok ? "ok" : "FAILING"}`;
+
+  const med = k => median(m[k]);
+  const lines = [
+    `camera check  ${secs.toFixed(1)}s`,
+    ``,
+    `  resolution      ${v.videoWidth || "?"} x ${v.videoHeight || "?"}`,
+    `  frame rate      ${fps.toFixed(1)} fps` + (fps < 8 ? "   (slow)" : ""),
+    `  person seen     ${seen}/${frames}` + (frames ? `  (${Math.round(100 * seen / frames)}%)` : ""),
+    ``,
+    row("body in frame", med("fill"), `need >=${TOLERANCE.fill}`, med("fill") >= TOLERANCE.fill),
+    row("tracking", med("minVisibility"), `need >=${TOLERANCE.visibility}`, med("minVisibility") >= TOLERANCE.visibility),
+    row("arms out", med("clearance"), `need >=${TOLERANCE.clearance}`, med("clearance") >= TOLERANCE.clearance),
+    row("shoulders level", med("tilt"), `need <=${TOLERANCE.tilt}`, med("tilt") <= TOLERANCE.tilt),
+    row("facing camera", med("spanRatio"), `need >=0.13`, med("spanRatio") >= 0.13),
+    ``,
+  ];
+
+  if (!seen) {
+    lines.push(`  verdict: no person detected at all. Check the lighting, and that`);
+    lines.push(`           you are actually in the camera's view.`);
+  } else if (worst) {
+    lines.push(`  most common blocker (${worst[1]} of ${seen} frames):`);
+    lines.push(`    ${worst[0]}`);
+  } else {
+    lines.push(`  verdict: all checks passing - the scan should lock on.`);
+  }
+  if (fps < 8 && seen) {
+    lines.push(``);
+    lines.push(`  note: ${fps.toFixed(1)} fps is slow, but holding is timed in seconds`);
+    lines.push(`        rather than frames, so this no longer blocks the scan.`);
+  }
+
+  out.textContent = lines.join("\n");
+  btn.disabled = false;
+}
+
 /* ------------------------------------------------------------------ plan --- */
 
 let lastScan = null;   // the measurement the plan is built from
@@ -258,7 +368,7 @@ function renderSteps(activeIndex = -1, banked = { front: 0, side: 0 }) {
  * unactionable - for the user and for anyone debugging on a device they do not
  * have. Failing checks are marked.
  */
-function renderDiag(m, held) {
+function renderDiag(m, held, fps) {
   const d = $("diag");
   if (!m || m.ratio === undefined) { d.hidden = true; return; }
   const cell = (label, value, ok) =>
@@ -270,13 +380,14 @@ function renderDiag(m, held) {
     cell("arms", m.clearance, m.clearance >= TOLERANCE.clearance),
     cell("shoulders-level", m.tilt, m.tilt <= TOLERANCE.tilt),
     `turn ${m.ratio}`,
-    `hold ${held}/${HOLD_FRAMES}`,
+    `hold ${Math.round((held / HOLD_MS) * 100)}%`,
+    `${m.fps ?? "-"}fps`,
   ].join(" &nbsp;&middot;&nbsp; ");
 }
 
 function onScanState(state, payload) {
   if (state === "positioning" || state === "holding") {
-    renderDiag(payload.metrics, payload.held);
+    renderDiag({ ...payload.metrics, fps: payload.fps }, payload.held);
     renderSteps(payload.stepIndex, payload.banked);
     if (payload.stuck) showStuckHelp(payload.blocker);
     const holding = state === "holding";
@@ -651,6 +762,11 @@ for (const id of ["p-goal", "p-activity", "p-diet"]) {
 }
 $("run").addEventListener("click", runUpload);
 $("sample").addEventListener("click", runSample);
+$("camcheck").addEventListener("click", () => runCameraCheck().catch(err => {
+  $("camreport").hidden = false;
+  $("camreport").textContent = "Camera check failed: " + err.message;
+  $("camcheck").disabled = false;
+}));
 
 // exposed so the browser test harness can drive a scan from a synthetic stream
 window.__bodycomp = {

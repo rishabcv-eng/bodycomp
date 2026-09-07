@@ -1,0 +1,19 @@
+# Python side: data prep, training, evaluation, and the reference
+# implementation that the browser is checked against.
+# Install:  pip install -r requirements.txt
+numpy==2.4.3
+pandas==3.0.1
+scipy==1.18.1
+scikit-learn==1.9.0
+lightgbm==4.7.0
+
+# NHANES ships as SAS transport files
+pyreadstat==1.3.6
+
+# Silhouette work and the segmentation front end
+pillow==12.1.1
+opencv-python-headless==5.0.0.93
+mediapipe==1.0.1
+
+# Figures in reports/
+matplotlib==3.10.8

@@ -1,6 +1,6 @@
 // The overlay traces a real segmentation mask, so a wrong trace would draw a
 // confident outline around the wrong shape. These check the geometry directly.
-import { traceContour, smoothContour, sampleMesh } from "./public/js/overlay.js";
+import { traceContour, smoothContour, sampleMesh, sampleChords } from "./public/js/overlay.js";
 
 let failures = 0;
 const check = (name, cond, detail = "") => {
@@ -73,3 +73,21 @@ check("an empty mask yields no mesh", sampleMesh(new Uint8Array(W * H), W, H).le
 
 if (failures) { console.error(`\nFAIL: ${failures} check(s) failed`); process.exit(1); }
 console.log("\nPASS - contour and mesh both match the mask they are given");
+
+console.log("\nsampleChords");
+const chords = sampleChords(body, W, H, 12);
+check("chords are produced", chords.length > 6, `${chords.length} chords`);
+check("every chord lies inside the mask",
+      chords.every(c => body[c.y * W + c.x0] === 1 && body[c.y * W + c.x1] === 1));
+check("chords span left to right", chords.every(c => c.x1 > c.x0));
+check("chords are ordered top to bottom",
+      chords.every((c, i) => i === 0 || c.y > chords[i - 1].y));
+// torso is 18..41 wide, legs are two 6-wide columns: torso chords must be wider
+const torso = chords.filter(c => c.y < 50), legs = chords.filter(c => c.y > 55);
+check("a wide torso gives wider chords than a narrow leg",
+      Math.max(...torso.map(c => c.x1 - c.x0)) > Math.max(...legs.map(c => c.x1 - c.x0)),
+      `torso ${Math.max(...torso.map(c => c.x1 - c.x0))} vs leg ${Math.max(...legs.map(c => c.x1 - c.x0))}`);
+check("an empty mask yields no chords", sampleChords(new Uint8Array(W * H), W, H).length === 0);
+
+if (failures) { console.error(`\nFAIL: ${failures} check(s) failed`); process.exit(1); }
+console.log("\nPASS - contour, mesh and chords all match the mask they are given");

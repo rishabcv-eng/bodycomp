@@ -329,3 +329,10 @@ input[type=range]::-moz-range-thumb {
   border-radius:3px; padding:8px 10px; margin-top:8px; overflow-x:auto; white-space:nowrap;
 }
 .diag b { color:var(--bad); font-weight:600; }
+
+.report {
+  font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:.72rem; line-height:1.5;
+  color:var(--ink-2); background:var(--sunken); border:1px solid var(--line);
+  border-left:2px solid var(--scan-dim); border-radius:3px; padding:12px 14px;
+  margin:0; overflow-x:auto; white-space:pre;
+}

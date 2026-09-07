@@ -1,7 +1,7 @@
 // Drives the step machine with a fake pose source: no camera, no DOM canvas.
 // Verifies positions are confirmed one at a time and that a wrong orientation
 // blocks progress rather than banking a frame.
-import { ScanController, STEPS, HOLD_FRAMES, CONFIRM_MS } from "./public/js/scan.js";
+import { ScanController, STEPS, HOLD_MS, CONFIRM_MS } from "./public/js/scan.js";
 
 let failures = 0;
 const check = (name, cond, detail = "") => {
@@ -50,17 +50,20 @@ await controller.start(async () => ({
   getVideoTracks: () => [{ stop() {}, getCapabilities: () => ({}), getSettings: () => ({}) }],
 }));
 
-const runTicks = n => { for (let i = 0; i < n; i++) controller.tick(); };
+let fakeNow = 1000;
+const FRAME_MS = 60;                 // pretend ~16 fps
+controller.clock = () => fakeNow;
+const runTicks = n => { for (let i = 0; i < n; i++) { fakeNow += FRAME_MS; controller.tick(); } };
 // Landmarks are smoothed, so a pose change takes a few frames to register.
 // Assert on outcomes and on the MINIMUM ticks required, not an exact count.
-const runUntil = (pred, max = 90) => {
-  for (let i = 1; i <= max; i++) { controller.tick(); if (pred()) return i; }
+const runUntil = (pred, max = 120) => {
+  for (let i = 1; i <= max; i++) { fakeNow += FRAME_MS; controller.tick(); if (pred()) return i; }
   return -1;
 };
 
 console.log("step 1 - front");
 current = pose({ shoulderSep: 0.06 });          // wrong: profile while front is asked for
-runTicks(HOLD_FRAMES + 5);
+runTicks(Math.ceil(HOLD_MS / FRAME_MS) + 5);
 check("a side-on pose does not satisfy the front step",
       controller.captured.front.length === 0, `state=${controller.state}`);
 check("the guidance says to turn back to face the camera",
@@ -75,22 +78,23 @@ check("front not banked early", controller.captured.front.length === 0);
 const frontTicks = runUntil(() => controller.state === "confirmed");
 check("front confirmed once the hold completes", controller.state === "confirmed",
       `after ${frontTicks} more ticks`);
-check("it cannot confirm faster than the hold allows", frontTicks >= HOLD_FRAMES - 4,
-      `${frontTicks} ticks vs hold of ${HOLD_FRAMES}`);
+check("it cannot confirm faster than the hold time allows",
+      frontTicks * FRAME_MS >= HOLD_MS - 3 * FRAME_MS,
+      `${frontTicks * FRAME_MS}ms vs hold of ${HOLD_MS}ms`);
 check("front frames banked", controller.captured.front.length > 0,
       `${controller.captured.front.length} frames`);
 
 // the confirmation must persist, not flash past
 controller.tick();
 check("confirmation is held on screen", controller.state === "confirmed");
-await new Promise(r => setTimeout(r, CONFIRM_MS + 60));
+fakeNow += CONFIRM_MS + 60;
 controller.tick();
 check("advances to step 2 after the confirmation", controller.stepIndex === 1,
       `stepIndex=${controller.stepIndex}`);
 
 console.log("\nstep 2 - side");
 current = pose();                                // wrong: still facing front
-runTicks(HOLD_FRAMES + 5);
+runTicks(Math.ceil(HOLD_MS / FRAME_MS) + 5);
 check("a front pose does not satisfy the side step", controller.captured.side.length === 0);
 check("the guidance says to keep turning", /keep turning/i.test(last.p.message || ""), last.p.message);
 
@@ -107,7 +111,7 @@ console.log("\ntolerance to jitter");
   controller._hold = 0; controller._bad = 0; controller._lmEma = null;
   controller.state = "positioning";
   current = pose({ shoulderSep: 0.06, armsOut: false });
-  runTicks(13);                            // build up a hold, short of confirming
+  runTicks(15);                            // build up a hold, short of confirming
   const before = controller._hold;
 
   current = pose();                       // one wrong frame

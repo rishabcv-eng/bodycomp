@@ -1,0 +1,12 @@
+# Normalise line endings so Windows checkouts stop rewriting every file.
+* text=auto eol=lf
+*.cmd text eol=crlf
+
+# Keep binaries byte-exact: the model weights are read as packed structs and a
+# line-ending rewrite would silently corrupt them.
+*.bin binary
+*.png binary
+*.jpg binary
+*.tflite binary
+*.task binary
+*.XPT binary

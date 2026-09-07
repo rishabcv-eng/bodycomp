@@ -99,43 +99,93 @@ export function sampleMesh(mask, w, h, spacing = 6) {
   return pts;
 }
 
-// No amber anywhere. Cool instrument colours: alive while adjusting, bright on
-// lock, near-white on capture. Warm tones are reserved for genuine errors.
+/**
+ * Horizontal chords across the body at evenly spaced heights.
+ *
+ * This is the overlay's main structure because it is what the measurement
+ * actually is: Stage 1 reads the body's width at 48 heights and nothing else.
+ * Drawing those chords shows the user the real quantity being taken off them,
+ * rather than decorating the frame with a shape.
+ *
+ * The run nearest the body centreline is used, matching silhouette.js, so an
+ * arm held away from the torso does not stretch the chord.
+ */
+export function sampleChords(mask, w, h, count = 16) {
+  let top = -1, bot = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (mask[y * w + x]) { if (top < 0) top = y; bot = y; break; }
+    }
+  }
+  if (top < 0 || bot - top < 8) return [];
+
+  const centre = Math.round((() => {
+    let lo = w, hi = 0;
+    for (let y = top; y <= bot; y++) {
+      for (let x = 0; x < w; x++) if (mask[y * w + x]) { if (x < lo) lo = x; if (x > hi) hi = x; }
+    }
+    return (lo + hi) / 2;
+  })());
+
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const y = Math.round(top + (bot - top) * (i + 0.5) / count);
+    let best = null, x = 0;
+    while (x < w) {
+      if (!mask[y * w + x]) { x++; continue; }
+      const s = x;
+      while (x < w && mask[y * w + x]) x++;
+      const e = x - 1;
+      const d = (s <= centre && centre <= e) ? 0 : Math.min(Math.abs(s - centre), Math.abs(e - centre));
+      if (!best || d < best.d) best = { d, x0: s, x1: e };
+    }
+    if (best && best.x1 > best.x0) out.push({ y, x0: best.x0, x1: best.x1 });
+  }
+  return out;
+}
+
+// Cool instrument palette. Warm tones are reserved for genuine errors, so an
+// ordinary "keep adjusting" moment never reads as a fault.
 const PALETTE = {
-  adjust: { line: "#5FB3C6", dot: "#8FD4E0", glow: "#3E8FA6", wash: "#2E6C7E" },
-  ok:     { line: "#3FE0B8", dot: "#9BFFE6", glow: "#3FE0B8", wash: "#1FA98A" },
-  done:   { line: "#CFFFF2", dot: "#FFFFFF", glow: "#8FFFE4", wash: "#3FE0B8" },
+  adjust: { line: "#6FBECF", soft: "#4A8EA0", glow: "#3E8FA6" },
+  ok:     { line: "#4FE3BE", soft: "#2FA98A", glow: "#3FE0B8" },
+  done:   { line: "#DFFFF6", soft: "#7FE8CD", glow: "#8FFFE4" },
 };
 
-function pathFrom(ctx, pts, scaleX, scaleY) {
+function pathFrom(ctx, pts, sx, sy) {
   if (pts.length < 3) return;
   ctx.beginPath();
-  const P = i => {
-    const p = pts[(i + pts.length) % pts.length];
-    return [p[0] * scaleX, p[1] * scaleY];
-  };
+  const P = i => { const p = pts[(i + pts.length) % pts.length]; return [p[0] * sx, p[1] * sy]; };
   const [x0, y0] = P(0);
   ctx.moveTo(x0, y0);
   for (let i = 1; i <= pts.length; i++) {
-    const [x1, y1] = P(i);
-    const [x2, y2] = P(i + 1);
+    const [x1, y1] = P(i), [x2, y2] = P(i + 1);
     ctx.quadraticCurveTo(x1, y1, (x1 + x2) / 2, (y1 + y2) / 2);
   }
   ctx.closePath();
 }
 
-/** Framing brackets: where the body is expected to sit. */
-function drawBrackets(ctx, w, h, colour, alpha) {
-  const mx = w * 0.09, my = h * 0.045;
-  const len = Math.min(w, h) * 0.075;
+/** Dim everything outside the body, so the subject separates from the room. */
+function dimSurround(ctx, w, h, contour, sx, sy) {
   ctx.save();
-  ctx.strokeStyle = colour;
+  ctx.fillStyle = "rgba(3,10,12,0.5)";
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "destination-out";
+  pathFrom(ctx, contour, sx, sy);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Thin framing marks. Long and fine reads as an instrument; short and thick does not. */
+function drawFrame(ctx, w, h, pal, alpha) {
+  const mx = w * 0.055, my = h * 0.03;
+  const len = Math.min(w, h) * 0.09;
+  ctx.save();
+  ctx.strokeStyle = pal.line;
   ctx.globalAlpha = alpha;
-  ctx.lineWidth = Math.max(2.5, w / 200);
-  ctx.lineCap = "round";
+  ctx.lineWidth = Math.max(1, w / 400);
   for (const [cx, cy, dx, dy] of [
-    [mx, my, 1, 1], [w - mx, my, -1, 1],
-    [mx, h - my, 1, -1], [w - mx, h - my, -1, -1],
+    [mx, my, 1, 1], [w - mx, my, -1, 1], [mx, h - my, 1, -1], [w - mx, h - my, -1, -1],
   ]) {
     ctx.beginPath();
     ctx.moveTo(cx, cy + dy * len); ctx.lineTo(cx, cy); ctx.lineTo(cx + dx * len, cy);
@@ -144,93 +194,104 @@ function drawBrackets(ctx, w, h, colour, alpha) {
   ctx.restore();
 }
 
-/** The mesh, brightened in a band that travels down the body while holding. */
-function drawMesh(ctx, mesh, sx, sy, pal, h, sweepY) {
-  const base = Math.max(1.1, sx * 0.55);
+/** The measurement itself: width chords, with a tick at each end. */
+function drawChords(ctx, chords, sx, sy, pal, h, sweepY) {
   ctx.save();
-  ctx.fillStyle = pal.dot;
-  for (const [mx, my, edge] of mesh) {
-    const x = mx * sx, y = my * sy;
-    let a = edge ? 0.85 : 0.45;
-    let r = edge ? base * 1.15 : base;
+  ctx.lineWidth = Math.max(1, sx * 0.28);
+  const tick = Math.max(3, sx * 1.6);
+  for (const c of chords) {
+    const y = c.y * sy, x0 = c.x0 * sx, x1 = c.x1 * sx;
+    let a = 0.30;
     if (sweepY !== null) {
-      const d = Math.abs(y - sweepY) / (h * 0.09);
-      if (d < 1) { const k = 1 - d; a = Math.min(1, a + 0.5 * k); r *= 1 + 0.5 * k; }
+      const d = Math.abs(y - sweepY) / (h * 0.10);
+      if (d < 1) a += 0.55 * (1 - d);
     }
     ctx.globalAlpha = a;
+    ctx.strokeStyle = pal.soft;
+    ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+
+    ctx.globalAlpha = Math.min(1, a + 0.25);
+    ctx.strokeStyle = pal.line;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(x0, y - tick / 2); ctx.lineTo(x0, y + tick / 2);
+    ctx.moveTo(x1, y - tick / 2); ctx.lineTo(x1, y + tick / 2);
+    ctx.stroke();
   }
   ctx.restore();
 }
 
-/** Ring that fills as the hold completes. */
-function drawHoldRing(ctx, w, h, progress, pal) {
-  const r = Math.min(w, h) * 0.05;
-  const cx = w - r - w * 0.085, cy = h - r - h * 0.075;
+/** Progress as a hairline along the bottom of the frame. */
+function drawProgress(ctx, w, h, progress, pal) {
+  const mx = w * 0.055, y = h - h * 0.03;
   ctx.save();
-  ctx.lineWidth = Math.max(3, w / 150);
   ctx.lineCap = "round";
-  ctx.globalAlpha = 0.22;
+  ctx.lineWidth = Math.max(2, w / 220);
+  ctx.globalAlpha = 0.18;
   ctx.strokeStyle = pal.line;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = pal.dot;
+  ctx.beginPath(); ctx.moveTo(mx, y); ctx.lineTo(w - mx, y); ctx.stroke();
+  ctx.globalAlpha = 0.95;
   ctx.shadowColor = pal.glow;
-  ctx.shadowBlur = w / 40;
+  ctx.shadowBlur = w / 50;
   ctx.beginPath();
-  ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, progress));
+  ctx.moveTo(mx, y);
+  ctx.lineTo(mx + (w - 2 * mx) * Math.min(1, progress), y);
   ctx.stroke();
   ctx.restore();
 }
 
 /**
  * @param contour  points in mask space, or null when no silhouette is available
- * @param mesh     points in mask space, or null
+ * @param chords   horizontal width chords, or null
+ * @param mesh     sparse interior points, or null
  * @param state    "ok" | "adjust"
  */
 export function drawOverlay(ctx, {
-  width, height, contour, mesh, maskWidth, maskHeight,
+  width, height, contour, chords, mesh, maskWidth, maskHeight,
   state = "adjust", holdProgress = 0, confirmed = false,
 }) {
   const pal = confirmed ? PALETTE.done : (state === "ok" ? PALETTE.ok : PALETTE.adjust);
   ctx.clearRect(0, 0, width, height);
-  drawBrackets(ctx, width, height, pal.line, state === "ok" || confirmed ? 0.8 : 0.45);
+  drawFrame(ctx, width, height, pal, state === "ok" || confirmed ? 0.75 : 0.4);
 
   if (!contour || contour.length < 6 || !maskWidth) return;
   const sx = width / maskWidth, sy = height / maskHeight;
 
-  // interior wash, so the body separates from the background
-  ctx.save();
-  pathFrom(ctx, contour, sx, sy);
-  ctx.globalAlpha = confirmed ? 0.22 : (state === "ok" ? 0.16 : 0.10);
-  ctx.fillStyle = pal.wash;
-  ctx.fill();
-  ctx.restore();
+  dimSurround(ctx, width, height, contour, sx, sy);
 
-  // the mesh, with a sweep band while a position is being held
   const sweepY = (holdProgress > 0 && !confirmed)
-    ? height * (0.06 + 0.88 * ((holdProgress * 1.35) % 1))
+    ? height * (0.04 + 0.92 * ((holdProgress * 1.3) % 1))
     : null;
-  if (mesh && mesh.length) drawMesh(ctx, mesh, sx, sy, pal, height, sweepY);
 
-  // edge: a soft glow, then a fine line on top
+  // faint interior texture, well under the chords
+  if (mesh && mesh.length) {
+    ctx.save();
+    ctx.fillStyle = pal.soft;
+    ctx.globalAlpha = 0.20;
+    const r = Math.max(0.7, sx * 0.3);
+    for (const [mx, my] of mesh) {
+      ctx.beginPath(); ctx.arc(mx * sx, my * sy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  if (chords && chords.length) drawChords(ctx, chords, sx, sy, pal, height, sweepY);
+
+  // edge: a soft glow, then a hairline on top
   ctx.save();
   pathFrom(ctx, contour, sx, sy);
   ctx.strokeStyle = pal.line;
   ctx.shadowColor = pal.glow;
-  ctx.shadowBlur = Math.max(8, width / 55);
-  ctx.lineWidth = Math.max(1.8, width / 260);
-  ctx.globalAlpha = state === "ok" || confirmed ? 0.9 : 0.6;
+  ctx.shadowBlur = Math.max(6, width / 70);
+  ctx.lineWidth = Math.max(1.4, width / 320);
+  ctx.globalAlpha = state === "ok" || confirmed ? 0.95 : 0.65;
   ctx.stroke();
   ctx.shadowBlur = 0;
+  ctx.lineWidth = Math.max(0.8, width / 560);
   ctx.globalAlpha = 1;
-  ctx.lineWidth = Math.max(1, width / 420);
   ctx.stroke();
   ctx.restore();
 
   if (holdProgress > 0 || confirmed) {
-    drawHoldRing(ctx, width, height, confirmed ? 1 : holdProgress, pal);
+    drawProgress(ctx, width, height, confirmed ? 1 : holdProgress, pal);
   }
 }

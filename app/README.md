@@ -163,93 +163,27 @@ particular garment behaves.
 
 ## The overlay
 
-A pose skeleton looks like a debug view, so the overlay draws the user's own body
-instead: a **point mesh** sampled across the silhouette, a fine traced edge with a
-soft glow, framing brackets, and a hold ring tucked into the lower-right bracket so
-it never sits over the feet.
+A pose skeleton looks like a debug view, and a scatter of dots looks decorative.
+The overlay now shows **what the measurement actually is**: Stage 1 reads the
+body's width at a set of heights and nothing else, so the overlay draws those
+chords across the silhouette, each with a tick at either end.
 
-The mesh is what makes it read as a scan. Points are sampled on a jittered grid
-clipped to the mask, so they sit *on* the subject and deform with them. The jitter
-comes from the grid coordinates rather than a random source, so points do not crawl
-between frames.
+That choice is not only cosmetic. The user can see the exact quantity being taken
+off them, and a loose top shows up as visibly wider chords before any number is
+produced.
 
-**No amber anywhere.** The first version used the project's warning colour for the
-"keep adjusting" state, which made an ordinary moment look like a fault. The overlay
-now runs a cool instrument palette - muted cyan while adjusting, bright mint on
-lock, near-white on capture - and warm tones are reserved for real errors. The
-guidance text beside the camera follows the same palette.
+Around it: a hairline contour with a soft glow, thin corner marks, the area
+outside the body dimmed so the subject separates from the room, a faint interior
+texture, and a sweep that brightens each chord as it passes. Progress is a
+hairline along the bottom of the frame rather than a badge.
 
-The contour is a Moore-neighbour boundary trace of a real segmentation mask, not
-a shape drawn from landmarks, so it cannot flatter the capture — a loose top shows
-up as a loose outline before any number is produced. It runs on the small 249 KB
-general segmenter at 192 px wide, throttled to ~9 fps, so decoration never
-competes with the pose checks for frame time. If it fails once it disables itself
-and the scan continues without it.
+Chords use the run nearest the body centreline, matching `silhouette.js`, so an
+arm held away from the torso does not stretch one.
 
-
-## Making it actually detect people
-
-First real-device run reported the camera "not recognising the person". Four
-causes, found by inspection:
-
-**The preview was cropped.** The video sat in a fixed 3:4 box with
-`object-fit: cover`, while the pose model ran on the *whole* camera frame. On a
-16:9 webcam that hides most of the width, so the user could not see what the
-model was reacting to. Now `contain`: what you see is what is analysed.
-
-**Any single bad frame reset the hold.** The counter zeroed on one failed check,
-so with ordinary pose jitter a streak of 18 could never complete. It now decays
-one frame of credit per bad frame and only restarts after 15 sustained failures -
-you must be in position more than out of it, but a wobble no longer erases a
-second of good positioning.
-
-**Dropped detections reset it too.** MediaPipe returns no landmarks now and then.
-Up to six consecutive misses are now tolerated before anything is discarded.
-
-**Landmarks are smoothed** with an EMA before any check runs, so the shoulder
-ratio, tilt and arm clearance stop flickering - and a one-frame glitch is
-absorbed entirely rather than merely discounted.
-
-**Tolerances were guesses.** They were tuned against synthetic poses and proved
-too strict on a real person; they now live in one exported `TOLERANCE` object.
-Visibility 0.5 -> 0.35, body fill 0.45 -> 0.38, arm clearance 0.55 -> 0.45, tilt
-0.18 -> 0.22. None of these is a last line of defence: the mask-coverage check at
-measurement time still rejects a bad capture, and that one is geometric rather
-than confidence-based.
-
-**Live diagnostics.** A readout under the camera shows every gating number with
-the failing ones marked, so "it does not see me" becomes a specific,
-reportable value.
-
-
-### The threshold that stopped it working
-
-The worst of these was a fixed gate on **shoulder span over torso length**:
-`> 0.60` to count as facing the camera. That number came from assumed body
-proportions, never a measurement. The quantity depends on build, on camera pitch,
-and on where MediaPipe places the hip joints - so a perfectly square stance can
-sit under it, and then the front position can never be satisfied. The app tells
-you to face the camera while you already are.
-
-Removing the gate entirely was worse: with no discriminator, a **side-on stance
-satisfied the front step**, which would have corrupted the measurement silently.
-The tests caught that immediately.
-
-The fix is a better denominator. Shoulder span over **body height** runs about
-0.20-0.26 square to the camera and 0.04-0.10 in profile - measured here at
-**0.229 vs 0.039**, a six-fold gap - and body height is the most stable quantity
-in the frame, being the same one used for centimetre scaling. Thresholds sit in
-the middle of that gap rather than on the edge of a cluster.
-
-The side positions calibrate further against the person's own front reading, so
-build and camera angle cancel out entirely.
-
-### When it still will not lock
-
-After 14 seconds of failing the same check, the app stops repeating itself and
-says which check is blocking, then offers Upload photos or the sample. A laptop
-webcam on a desk usually cannot see feet from any distance, and no amount of
-guidance fixes that.
+**No amber anywhere.** The first version used the project's warning colour for
+"keep adjusting", which made an ordinary moment look like a fault. The palette is
+cool throughout - muted cyan while adjusting, mint on lock, near-white on capture
+- and warm tones are reserved for real errors.
 
 ## Camera framing
 
@@ -261,6 +195,62 @@ separate device rather than a zoom value.
 
 Zoom cannot corrupt a measurement. Scale comes from the silhouette's pixel height
 against the stated body height, recomputed every frame, so magnification cancels.
+
+## Making it detect real people
+
+The first build was tuned entirely against synthetic poses, and on a real device
+it often refused to lock on. Causes, in order of how much they mattered:
+
+**Holding was counted in frames, not seconds.** `HOLD_FRAMES = 18` was documented
+as "~1 second", silently assuming 18 fps. The live loop runs pose detection every
+frame *plus* a segmentation pass for the overlay, so on a modest machine it drops
+to 5-10 fps - where 18 frames means **three seconds** of near-perfect stillness,
+with credit decaying on every bad frame. Holding is now wall-clock
+(`HOLD_MS = 1200`) accumulated from the real frame delta, so it behaves the same
+at 6 fps and at 60. Gaps over 250 ms are ignored, so a backgrounded tab cannot
+bank a position it never saw.
+
+**The overlay competed with detection.** A preview segmentation pass now widens
+its own interval (up to 600 ms) when it costs more than 45 ms. Decoration must
+never starve the checks that are the actual product.
+
+**The preview was cropped.** The video sat in a fixed 3:4 box with
+`object-fit: cover` while the model analysed the whole frame, so what the user
+saw was not what was measured. Now `contain`.
+
+**A single bad frame reset everything** - both a failed check and a dropped
+detection. Credit now decays rather than resetting, up to six consecutive missed
+detections are tolerated, and landmarks are smoothed with an EMA before any check
+runs.
+
+**Front/side used an unreachable threshold.** See the section above.
+
+## Camera self-check
+
+Iterating on a live-camera feature without a camera is guesswork, and it showed.
+`Test my camera` runs five seconds of real detection and reports frame rate,
+detection rate, every gating metric against its threshold, and the single check
+that failed most often:
+
+```
+camera check  5.0s
+
+  resolution      1280 x 720
+  frame rate      11.4 fps
+  person seen     54/57  (95%)
+
+  body in frame     0.31   need >=0.38   FAILING
+  tracking          0.72   need >=0.35   ok
+  arms out          0.61   need >=0.45   ok
+  shoulders level   0.07   need <=0.22   ok
+  facing camera     0.19   need >=0.13   ok
+
+  most common blocker (49 of 54 frames):
+    Move the camera back - your feet must be in frame.
+```
+
+That turns "it does not work" into a specific number, which is the only way this
+gets fixed on hardware the author cannot run.
 
 ## The plan
 
@@ -314,7 +304,7 @@ Porting a model to a second language silently is how wrong numbers ship.
 - `scan_steps_test.mjs` — 18 checks driving the step machine with a fake pose
   source: wrong orientations must not bank frames, and each position must be
   confirmed before the next begins
-- `overlay_test.mjs` — 20 checks on contour and mesh geometry against known masks
+- `overlay_test.mjs` — 26 checks on contour, mesh and chord geometry against known masks
 - `plan_test.mjs` — 30 checks on plan maths, safety floors and diet variants
 - `public/selftest.html` — full pipeline plus multi-frame median, in the browser
 

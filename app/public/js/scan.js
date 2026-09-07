@@ -15,13 +15,14 @@
 // It does not fix systematic bias. Averaging only removes the random component.
 
 import { LM } from "./mask.js";
-import { traceContour, smoothContour, sampleMesh, drawOverlay } from "./overlay.js";
+import { traceContour, smoothContour, sampleMesh, sampleChords, drawOverlay } from "./overlay.js";
 
 export const KEEP_PER_VIEW = 3;   // best-N frames kept per captured position
-export const HOLD_FRAMES = 18;    // ~1s of continuously correct pose before banking
+export const HOLD_MS = 1200;      // wall-clock time in position before banking
+export const HOLD_FRAMES = 18;    // retained for callers that report progress
 export const CONFIRM_MS = 900;    // how long the captured confirmation stays up
-const HOLD_DECAY = 1;             // frames of credit lost per bad frame (not a reset)
-const BAD_RESET = 15;             // sustained bad frames before the hold restarts
+const BAD_RESET_MS = 900;         // sustained time out of position before the hold restarts
+const MAX_DT = 250;               // ignore gaps larger than this (tab was backgrounded)
 const NO_POSE_GRACE = 6;          // dropped detections tolerated before giving up
 const SMOOTH = 0.4;               // EMA weight on new landmark positions
 const SIDE_DROP = 0.62;           // a side view sits below this fraction of the front span
@@ -46,7 +47,8 @@ export const TOLERANCE = {
   tilt: 0.22,         // was 0.18 - shoulder level
   margin: 0.02,       // was 0.03 - how close to the frame edge is "clipped"
 };
-const PREVIEW_MS = 110;           // min gap between live silhouette updates
+let previewGapMs = 110;           // adaptive: widens if segmentation is slow
+const PREVIEW_MIN = 90, PREVIEW_MAX = 600;
 const PREVIEW_W = 192;            // preview segmentation runs small and is upscaled
 
 /**
@@ -203,6 +205,7 @@ export class ScanController {
     this.previewSegmenter = previewSegmenter;   // optional: silhouette for the overlay
     this._contour = null;
     this._mesh = null;
+    this._chords = null;
     this._previewAt = 0;
     this._previewSize = [0, 0];
     this._small = null;
@@ -214,9 +217,13 @@ export class ScanController {
     this._lastTs = -1;
     this.stepIndex = 0;
     this.captured = { front: [], side: [] };
-    this._hold = 0;
-    this._bad = 0;
+    this._hold = 0;          // accumulated milliseconds in position
+    this._bad = 0;           // accumulated milliseconds out of position
     this._noPose = 0;
+    this._lastTick = 0;
+    this._fps = 0;
+    // injectable so tests can advance time without waiting for it
+    this.clock = () => performance.now();
     this._lmEma = null;
     this.frontRatio = null;       // this person's own square-on reference
     this.frontSpan = null;
@@ -271,9 +278,11 @@ export class ScanController {
     this.captured = { front: [], side: [] };
     this._best = new BestFrames(KEEP_PER_VIEW);
     this._hold = 0;
+    this._bad = 0;
+    this._lastTick = 0;
     this.frontRatio = null;
     this.frontSpan = null;
-    this._stuckSince = performance.now();
+    this._stuckSince = this.clock();
     this._emit("positioning", this.step.detail);
     this._loop();
   }
@@ -364,8 +373,9 @@ export class ScanController {
     this._setState(state, {
       step: this.step, stepIndex: this.stepIndex, total: STEPS.length,
       optional: !!this.step.optional, canFinish: this.canFinish,
-      message, held: this._hold, needed: HOLD_FRAMES,
-      progress: this._hold / HOLD_FRAMES,
+      message, held: Math.round(this._hold), needed: HOLD_MS,
+      progress: Math.min(1, this._hold / HOLD_MS),
+      fps: Math.round(this._fps),
       banked: { front: this.captured.front.length, side: this.captured.side.length },
       ...extra,
     });
@@ -389,9 +399,10 @@ export class ScanController {
    */
   _updateContour() {
     if (!this.previewSegmenter) return;
-    const now = performance.now();
-    if (now - this._previewAt < PREVIEW_MS) return;
+    const now = this.clock();
+    if (now - this._previewAt < previewGapMs) return;
     this._previewAt = now;
+    const started = now;
 
     const vw = this.video.videoWidth, vh = this.video.videoHeight;
     if (!vw || !vh) return;
@@ -418,11 +429,21 @@ export class ScanController {
     let fg = 0;
     for (let i = 0; i < mask.length; i++) { mask[i] = arr[i] < 0.5 ? 1 : 0; fg += mask[i]; }
     res.close?.();
-    if (fg < 40 || fg > mask.length * 0.92) { this._contour = this._mesh = null; return; }
+    if (fg < 40 || fg > mask.length * 0.92) {
+      this._contour = this._mesh = this._chords = null;
+      return;
+    }
 
     this._contour = smoothContour(traceContour(mask, w, h));
-    this._mesh = sampleMesh(mask, w, h);
+    this._mesh = sampleMesh(mask, w, h, 10);      // sparse: texture, not structure
+    this._chords = sampleChords(mask, w, h, 16);
     this._previewSize = [w, h];
+
+    // The overlay is decoration; the pose checks are the product. If a preview
+    // pass is expensive, run it less often rather than starving detection.
+    const cost = this.clock() - started;
+    if (cost > 45) previewGapMs = Math.min(PREVIEW_MAX, previewGapMs * 1.5);
+    else if (cost < 20) previewGapMs = Math.max(PREVIEW_MIN, previewGapMs * 0.9);
   }
 
   _drawOverlay(ok, holdProgress, confirmed) {
@@ -432,7 +453,7 @@ export class ScanController {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     drawOverlay(c.getContext("2d"), {
       width: w, height: h,
-      contour: this._contour, mesh: this._mesh,
+      contour: this._contour, mesh: this._mesh, chords: this._chords,
       maskWidth: this._previewSize[0], maskHeight: this._previewSize[1],
       state: ok ? "ok" : "adjust",
       holdProgress, confirmed,
@@ -453,14 +474,19 @@ export class ScanController {
     if (this.state === "done" || this.state === "idle" || this.state === "failed") return;
     if (this.video.readyState < 2) return;
 
+    const nowMs = this.clock();
+    const dt = this._lastTick ? Math.min(MAX_DT, nowMs - this._lastTick) : 0;
+    this._lastTick = nowMs;
+    if (dt > 0) this._fps = this._fps ? this._fps * 0.85 + (1000 / dt) * 0.15 : 1000 / dt;
+
     // hold the confirmation on screen long enough to read before advancing
     if (this.state === "confirmed") {
       this._drawOverlay(true, 1, true);
-      if (performance.now() >= this._confirmUntil) this._advance();
+      if (this.clock() >= this._confirmUntil) this._advance();
       return;
     }
 
-    let ts = performance.now();
+    let ts = nowMs;
     if (ts <= this._lastTs) ts = this._lastTs + 1;   // detectForVideo needs it strictly increasing
     this._lastTs = ts;
 
@@ -485,30 +511,31 @@ export class ScanController {
                               { assumeFacing: step.assumeFacing });
     const orientationOk = a.usable && step.matches(a, this);
     this._updateContour();
-    this._drawOverlay(orientationOk, this._hold / HOLD_FRAMES, false);
+    this._drawOverlay(orientationOk, Math.min(1, this._hold / HOLD_MS), false);
 
     if (!orientationOk) {
       // Decay rather than reset: a person holding still still produces the odd
       // bad frame, and zeroing on each one means the hold never completes.
-      this._bad++;
-      this._hold = this._bad > BAD_RESET ? 0 : Math.max(0, this._hold - HOLD_DECAY);
+      this._bad += dt;
+      // decay at the same rate it accrues: you must be in position more than out
+      this._hold = this._bad > BAD_RESET_MS ? 0 : Math.max(0, this._hold - dt);
       this._emit("positioning",
                  a.usable ? step.wrong : (a.issues[0] || "Finding you..."),
                  {
                    metrics: a.metrics, issues: a.issues,
-                   stuck: performance.now() - this._stuckSince > STUCK_MS,
+                   stuck: this.clock() - this._stuckSince > STUCK_MS,
                    blocker: a.issues[0] || step.wrong,
                  });
       return;
     }
 
     this._bad = 0;
-    this._hold++;
+    this._hold += dt;
     // prefer the squarest, most confidently tracked frames of this hold
     this._best.offer(a.metrics.minVisibility - Math.abs(a.metrics.tilt),
                      () => this._snapshot(), a.metrics);
 
-    if (this._hold < HOLD_FRAMES) {
+    if (this._hold < HOLD_MS) {
       this._emit("holding", "Hold still...", { metrics: a.metrics, issues: [] });
       return;
     }
@@ -524,7 +551,8 @@ export class ScanController {
     this.captured[step.view].push(...banked);
     this._best = new BestFrames(KEEP_PER_VIEW);
     this._hold = 0;
-    this._confirmUntil = performance.now() + CONFIRM_MS;
+    this._bad = 0;
+    this._confirmUntil = this.clock() + CONFIRM_MS;
     this._emit("confirmed", step.label + " captured");
   }
 
@@ -533,7 +561,8 @@ export class ScanController {
     this.stepIndex++;
     this._hold = 0;
     this._bad = 0;
-    this._stuckSince = performance.now();
+    this._lastTick = 0;
+    this._stuckSince = this.clock();
     this._lmEma = null;          // the body is about to turn; do not smooth across it
     this._emit("positioning", this.step.detail);
   }

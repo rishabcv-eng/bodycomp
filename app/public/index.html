@@ -96,6 +96,11 @@
         <button class="ghost" id="scan-finish" hidden>Finish with what I have</button>
         <button class="ghost" id="camera-stop" hidden>Cancel</button>
       </div>
+      <p class="hint"><button class="linkish" id="camcheck">Test my camera (5 seconds)</button>
+      &mdash; measures frame rate and every positioning check on your device, and names what is
+      blocking you. Run this first if the scan will not lock on.</p>
+      <pre class="report" id="camreport" hidden></pre>
+
       <p class="hint">No camera to hand? <button class="linkish" id="sample">Run a sample body</button>
       &mdash; a real scanned subject from the BodyM dataset, whose true tape measurements are known,
       so you can see the output next to the right answer.</p>
