@@ -15,7 +15,7 @@
 // It does not fix systematic bias. Averaging only removes the random component.
 
 import { LM } from "./mask.js";
-import { traceContour, smoothContour, sampleMesh, sampleChords, drawOverlay } from "./overlay.js";
+import { traceContour, smoothContour, sampleMesh, sampleChords, drawOverlay, alignment } from "./overlay.js";
 
 export const KEEP_PER_VIEW = 3;   // best-N frames kept per captured position
 export const HOLD_MS = 1200;      // wall-clock time in position before banking
@@ -98,9 +98,8 @@ export function frameAssessment(lm, W, H, { assumeFacing = false } = {}) {
   // camera and 0.05-0.10 in profile - a wide, stable gap that does not depend
   // on build or camera pitch the way shoulder-over-torso did.
   const spanRatio = bodyPx > 1 ? shoulderPx / bodyPx : 0;
-  if (fill < TOLERANCE.fill && feetVisible && headVisible) {
-    issues.push("Step closer, or bring the camera nearer - you are small in the frame.");
-  }
+  // Framing is judged against the on-screen markers (see alignment()), which
+  // give the user a target instead of an abstract complaint about their size.
 
   const shoulderSpanX = Math.abs(lSh.x - rSh.x) || 1e-6;
   const tilt = Math.abs(lSh.y - rSh.y) / shoulderSpanX;
@@ -120,13 +119,17 @@ export function frameAssessment(lm, W, H, { assumeFacing = false } = {}) {
   if (facing && clearance < TOLERANCE.clearance) issues.push("Hold your arms out, about 30 degrees.");
   if (facing && tilt > TOLERANCE.tilt) issues.push("Level your shoulders and face the camera square on.");
 
+  const headY = lm[LM.nose].y;
+  const feetY = Math.max(lm[LM.lAnkle].y, lm[LM.rAnkle].y);
+
   const metrics = {
     ratio: +ratio.toFixed(3), spanRatio: +spanRatio.toFixed(3), fill: +fill.toFixed(3),
+    headY: +headY.toFixed(3), feetY: +feetY.toFixed(3),
     tilt: +tilt.toFixed(3), clearance: +clearance.toFixed(3),
     minVisibility: +Math.min(vis(LM.nose), vis(LM.lAnkle), vis(LM.rAnkle),
                              vis(LM.lShoulder), vis(LM.rShoulder)).toFixed(2),
   };
-  return { usable: issues.length === 0, ratio, spanRatio, issues, metrics };
+  return { usable: issues.length === 0, ratio, spanRatio, headY, feetY, issues, metrics };
 }
 
 /** Score a frame as a front candidate (facing) or a side candidate (profile). */
@@ -447,6 +450,7 @@ export class ScanController {
   }
 
   _drawOverlay(ok, holdProgress, confirmed) {
+    const al = this._align || {};
     const c = this.overlay;
     const w = this.video.videoWidth, h = this.video.videoHeight;
     if (!w || !h) return;
@@ -457,6 +461,7 @@ export class ScanController {
       maskWidth: this._previewSize[0], maskHeight: this._previewSize[1],
       state: ok ? "ok" : "adjust",
       holdProgress, confirmed,
+      headOk: confirmed || !!al.headOk, feetOk: confirmed || !!al.feetOk,
     });
   }
 
@@ -509,7 +514,12 @@ export class ScanController {
     const step = this.step;
     const a = frameAssessment(lm, this.video.videoWidth, this.video.videoHeight,
                               { assumeFacing: step.assumeFacing });
-    const orientationOk = a.usable && step.matches(a, this);
+    // Head and feet must both sit in their markers before anything is banked:
+    // the whole measurement is scaled by body height, so a clipped body is
+    // worthless however good the pose is.
+    const align = a.usable ? alignment(a.headY, a.feetY) : { aligned: false, headOk: false, feetOk: false, hint: null };
+    this._align = align;
+    const orientationOk = a.usable && align.aligned && step.matches(a, this);
     this._updateContour();
     this._drawOverlay(orientationOk, Math.min(1, this._hold / HOLD_MS), false);
 
@@ -520,11 +530,12 @@ export class ScanController {
       // decay at the same rate it accrues: you must be in position more than out
       this._hold = this._bad > BAD_RESET_MS ? 0 : Math.max(0, this._hold - dt);
       this._emit("positioning",
-                 a.usable ? step.wrong : (a.issues[0] || "Finding you..."),
+                 a.issues[0] || align.hint || (align.aligned ? step.wrong : "Finding you..."),
                  {
                    metrics: a.metrics, issues: a.issues,
                    stuck: this.clock() - this._stuckSince > STUCK_MS,
-                   blocker: a.issues[0] || step.wrong,
+                   blocker: a.issues[0] || align.hint || step.wrong,
+                   aligned: align.aligned,
                  });
       return;
     }

@@ -336,3 +336,17 @@ input[type=range]::-moz-range-thumb {
   border-left:2px solid var(--scan-dim); border-radius:3px; padding:12px 14px;
   margin:0; overflow-x:auto; white-space:pre;
 }
+
+/* Status banner across the top of the viewfinder, the way capture apps do it:
+   one short verdict, large enough to read at arm's length while posing. */
+.banner {
+  position:absolute; left:0; right:0; top:0; z-index:2;
+  padding:11px 14px; text-align:center;
+  font-family:Archivo, ui-sans-serif, system-ui, sans-serif;
+  font-size:1rem; font-weight:600; letter-spacing:-.01em;
+  color:#EAF7F4; background:rgba(8,20,24,.72);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+.banner.ok { color:#0C1F1B; background:rgba(79,227,190,.92); border-bottom-color:transparent; }
+.banner.done { color:#0C1F1B; background:rgba(223,255,246,.95); border-bottom-color:transparent; }

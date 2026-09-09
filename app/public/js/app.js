@@ -340,6 +340,14 @@ function setMode(which) {
 
 /* ------------------------------------------------------------------ scan --- */
 
+/** One short verdict across the top of the viewfinder. */
+function setBanner(text, kind = "") {
+  const b = $("banner");
+  b.hidden = !text;
+  b.textContent = text || "";
+  b.className = "banner" + (kind ? " " + kind : "");
+}
+
 function setGuide(text, kind = "", extraHtml = "") {
   const g = $("guide");
   g.hidden = !text;
@@ -391,20 +399,25 @@ function onScanState(state, payload) {
     renderSteps(payload.stepIndex, payload.banked);
     if (payload.stuck) showStuckHelp(payload.blocker);
     const holding = state === "holding";
+    setBanner(holding ? "Perfect - hold still" : (payload.message || "Line yourself up"),
+              holding ? "ok" : "");
     const bar = holding
       ? `<span class="holdbar"><span style="width:${Math.round(payload.progress * 100)}%"></span></span>`
       : "";
     setGuide(`${payload.step.label} - ${payload.message}`, holding ? "ok" : "warn", bar);
     $("scan-finish").hidden = !payload.canFinish;
   } else if (state === "confirmed") {
+    setBanner(payload.message + "  \u2713", "done");
     $("diag").hidden = true;
     renderSteps(payload.stepIndex + 1, payload.banked);
     setGuide(payload.message + " \u2713", "ok");
     $("scan-finish").hidden = !payload.canFinish;
   } else if (state === "failed") {
+    setBanner("");
     setGuide(payload.reason, "warn");
     resetScanButtons();
   } else if (state === "done") {
+    setBanner("");
     renderSteps(STEPS.length, payload);
     setGuide("All positions captured - working out your measurements...", "ok");
     processScan(payload).catch(err => {
@@ -416,6 +429,7 @@ function onScanState(state, payload) {
 }
 
 function resetScanButtons() {
+  setBanner("");
   $("stuck").hidden = true;
   $("diag").hidden = true;
   $("camctl").hidden = true;

@@ -1,6 +1,6 @@
 // The overlay traces a real segmentation mask, so a wrong trace would draw a
 // confident outline around the wrong shape. These check the geometry directly.
-import { traceContour, smoothContour, sampleMesh, sampleChords } from "./public/js/overlay.js";
+import { traceContour, smoothContour, sampleMesh, sampleChords, alignment, GUIDE } from "./public/js/overlay.js";
 
 let failures = 0;
 const check = (name, cond, detail = "") => {
@@ -91,3 +91,35 @@ check("an empty mask yields no chords", sampleChords(new Uint8Array(W * H), W, H
 
 if (failures) { console.error(`\nFAIL: ${failures} check(s) failed`); process.exit(1); }
 console.log("\nPASS - contour, mesh and chords all match the mask they are given");
+
+console.log("\nalignment markers");
+{
+  const g = GUIDE;
+  const ok = alignment(g.headY, g.feetY);
+  check("head and feet on the markers is aligned", ok.aligned && !ok.hint,
+        JSON.stringify(ok.hint));
+
+  const far = alignment(0.32, 0.70);              // small in frame
+  check("too far away is caught", !far.aligned && /closer/i.test(far.hint), far.hint);
+
+  const near = alignment(0.01, 0.99);             // overflowing the frame
+  check("too close is caught", !near.aligned && /back/i.test(near.hint), near.hint);
+
+  const low = alignment(g.headY + 0.14, g.feetY + 0.02);
+  check("head off its marker is named specifically",
+        !low.headOk && /head/i.test(low.hint), low.hint);
+
+  const feetOff = alignment(g.headY, g.feetY - 0.15);
+  check("feet off the marker is named specifically",
+        !feetOff.feetOk && /feet|closer/i.test(feetOff.hint), feetOff.hint);
+
+  const edge = alignment(g.headY + g.tol * 0.9, g.feetY - g.tol * 0.9);
+  check("small deviations inside tolerance still pass", edge.aligned,
+        `head ${edge.headOk} feet ${edge.feetOk}`);
+
+  check("head and feet are judged independently",
+        alignment(g.headY, g.feetY - 0.14).headOk === true);
+}
+
+if (failures) { console.error(`\nFAIL: ${failures} check(s) failed`); process.exit(1); }
+console.log("\nPASS - contour, mesh, chords and alignment all behave");

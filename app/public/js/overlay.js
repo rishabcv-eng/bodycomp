@@ -220,9 +220,9 @@ function drawChords(ctx, chords, sx, sy, pal, h, sweepY) {
   ctx.restore();
 }
 
-/** Progress as a hairline along the bottom of the frame. */
+/** Progress as a hairline under the status banner, clear of the feet marker. */
 function drawProgress(ctx, w, h, progress, pal) {
-  const mx = w * 0.055, y = h - h * 0.03;
+  const mx = w * 0.055, y = h * 0.052;
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineWidth = Math.max(2, w / 220);
@@ -248,10 +248,12 @@ function drawProgress(ctx, w, h, progress, pal) {
 export function drawOverlay(ctx, {
   width, height, contour, chords, mesh, maskWidth, maskHeight,
   state = "adjust", holdProgress = 0, confirmed = false,
+  headOk = false, feetOk = false,
 }) {
   const pal = confirmed ? PALETTE.done : (state === "ok" ? PALETTE.ok : PALETTE.adjust);
   ctx.clearRect(0, 0, width, height);
-  drawFrame(ctx, width, height, pal, state === "ok" || confirmed ? 0.75 : 0.4);
+  drawFrame(ctx, width, height, pal, state === "ok" || confirmed ? 0.55 : 0.3);
+  drawGuides(ctx, width, height, { headOk, feetOk, state });
 
   if (!contour || contour.length < 6 || !maskWidth) return;
   const sx = width / maskWidth, sy = height / maskHeight;
@@ -294,4 +296,74 @@ export function drawOverlay(ctx, {
   if (holdProgress > 0 || confirmed) {
     drawProgress(ctx, width, height, confirmed ? 1 : holdProgress, pal);
   }
+}
+
+/**
+ * Where the body is meant to sit in the frame. Head and feet get their own
+ * markers, because "you are small in the frame" is not actionable and
+ * "line your head up with this bar" is. It also encodes the hard requirement:
+ * scale comes from body height, so head AND feet must both be visible.
+ */
+// headY sits below the status banner, feetY above the progress line, so
+// neither label is ever occluded by chrome.
+export const GUIDE = { headY: 0.115, feetY: 0.945, tol: 0.06 };
+
+/**
+ * Judge framing against the markers. Pure, so it is unit-tested.
+ * @param headY normalised y of the top of the head
+ * @param feetY normalised y of the lowest foot
+ */
+export function alignment(headY, feetY) {
+  const headOk = Math.abs(headY - GUIDE.headY) <= GUIDE.tol;
+  const feetOk = Math.abs(feetY - GUIDE.feetY) <= GUIDE.tol;
+  const span = feetY - headY;
+  const target = GUIDE.feetY - GUIDE.headY;
+
+  let hint = null;
+  if (span < target - 0.13) hint = "Step closer, or move the camera nearer.";
+  else if (span > target + 0.05) hint = "Step back - you do not fit in the frame.";
+  else if (!headOk) hint = "Line the top of your head up with the upper marker.";
+  else if (!feetOk) hint = "Line your feet up with the lower marker.";
+
+  return { headOk, feetOk, span, aligned: headOk && feetOk, hint };
+}
+
+/** One alignment marker: a bar with end ticks and a label. */
+function drawMarker(ctx, w, h, y, label, ok, below, pal) {
+  const x0 = w * 0.14, x1 = w * 0.86;
+  const tick = Math.min(w, h) * 0.045;
+  const colour = ok ? "#4FE3BE" : pal.line;
+
+  ctx.save();
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = Math.max(2, w / 170);
+  ctx.lineCap = "square";
+  ctx.globalAlpha = ok ? 0.95 : 0.55;
+  if (ok) { ctx.shadowColor = colour; ctx.shadowBlur = w / 45; }
+
+  const dir = below ? -1 : 1;          // ticks point into the body
+  ctx.beginPath();
+  ctx.moveTo(x0, y + dir * tick);
+  ctx.lineTo(x0, y);
+  ctx.lineTo(x1, y);
+  ctx.lineTo(x1, y + dir * tick);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const size = Math.max(9, w * 0.032);
+  ctx.font = `600 ${size}px "IBM Plex Sans", system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = below ? "top" : "bottom";
+  ctx.fillStyle = colour;
+  ctx.globalAlpha = ok ? 0.95 : 0.7;
+  ctx.letterSpacing = `${size * 0.08}px`;
+  ctx.fillText(label, w / 2, y + (below ? size * 0.7 : -size * 0.7));
+  ctx.restore();
+}
+
+/** Draw both markers. Exported so drawOverlay stays readable. */
+export function drawGuides(ctx, w, h, { headOk = false, feetOk = false, state = "adjust" } = {}) {
+  const pal = state === "ok" ? PALETTE.ok : PALETTE.adjust;
+  drawMarker(ctx, w, h, h * GUIDE.headY, "ALIGN TO TOP OF HEAD", headOk, false, pal);
+  drawMarker(ctx, w, h, h * GUIDE.feetY, "ALIGN TO BOTTOM OF FEET", feetOk, true, pal);
 }

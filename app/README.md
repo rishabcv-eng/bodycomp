@@ -185,6 +185,25 @@ arm held away from the torso does not stretch one.
 cool throughout - muted cyan while adjusting, mint on lock, near-white on capture
 - and warm tones are reserved for real errors.
 
+
+### Alignment markers
+
+Abstract guidance does not work. "You are small in the frame" leaves the user
+guessing; a bar labelled **ALIGN TO TOP OF HEAD** does not.
+
+Two markers sit at fixed heights, and each lights green independently when that
+end of the body reaches it. They also encode the hard requirement: scale comes
+from body height, so head *and* feet must both be in frame or the measurement is
+worthless however good the pose is. `alignment()` gates capture on both.
+
+The span between the markers doubles as the distance check - too small a body
+means "step closer", too large means "step back" - so one geometry drives both
+the visual target and the instruction.
+
+A status banner across the top of the viewfinder carries a single short verdict,
+large enough to read at arm's length while posing. It turns green on lock and
+near-white on capture.
+
 ## Camera framing
 
 `zoomRange` reports what the hardware actually exposes and drives a slider;
