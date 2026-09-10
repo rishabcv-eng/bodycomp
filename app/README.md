@@ -94,26 +94,34 @@ photo ─▶ MediaPipe selfie segmentation ─▶ alpha cut at 0.62 ─▶ open3
 ## The scan
 
 Asking someone to take a good side photo does not work — people misjudge a 90
-degree turn. So the app records five seconds while they turn and picks the frames
-itself.
+degree turn. So the app checks the turn actually happened rather than trusting it.
 
-**How front and side are identified.** Shoulder span divided by torso length, in
-pixels. It runs about 0.75–0.9 square to the camera and 0.1–0.3 in profile, so the
-widest frame is the front view and the narrowest is the true side view. Scale
-cancels out, so it works at any distance.
+**How front and side are identified.** Shoulder span over **body height**. That
+runs about 0.20–0.26 square to the camera and 0.04–0.10 in profile — measured here
+at 0.229 vs 0.039, a six-fold gap — so the thresholds sit in the middle of the gap
+rather than on the edge of a cluster.
+
+An earlier version used shoulder span over *torso length*, gated at a fixed 0.60.
+That quantity swings with build, camera pitch, and where MediaPipe places the hip
+joints, so a genuinely square stance could fall under it and the front position
+could never be satisfied. Body height is the most stable measure in the frame, and
+it is the same one used for centimetre scaling.
+
+The side positions calibrate further against the person's own front reading
+(`frontSpan × 0.62`), so build and camera angle cancel out entirely.
 
 **Confirmed positions, not a timed sweep.** The first build recorded five seconds
 blind, which gave the user no idea what had been captured. Capture is now a
 sequence of positions: the app states one, waits until the pose actually matches,
-holds ~1 s while it banks the best three frames, confirms *"Face the camera
-captured"*, then advances. Positions are Front, Side, and an optional second Side.
+holds for `HOLD_MS` of wall-clock time while it banks the best three frames,
+confirms *"Face the camera captured"*, then advances. Positions are Front, Side, and an optional second Side.
 
 There is no back step: shoulder span cannot distinguish front from back, and the
 models were never trained on back silhouettes. Capturing one would be theatre.
 
-**Turn detection.** If the front and side frames differ by less than 0.25 in that
-ratio, the user never actually turned, and the scan is rejected rather than
-measuring the same view twice.
+**Turn detection.** If the side reading is not at least 30% below the person's own
+front reading, they never actually turned, and the scan is rejected rather than
+measuring the same view twice. Expressed as a fraction, so it holds for any build.
 
 **Combining frames.** Each front/side pair is measured independently and the
 results combined by **median**, so one bad segmentation cannot drag the answer the
@@ -174,8 +182,8 @@ produced.
 
 Around it: a hairline contour with a soft glow, thin corner marks, the area
 outside the body dimmed so the subject separates from the room, a faint interior
-texture, and a sweep that brightens each chord as it passes. Progress is a
-hairline along the bottom of the frame rather than a badge.
+texture, and a sweep that brightens each chord as it passes. Progress is a hairline
+under the status banner — the bottom edge belongs to the feet marker.
 
 Chords use the run nearest the body centreline, matching `silhouette.js`, so an
 arm held away from the torso does not stretch one.
