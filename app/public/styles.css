@@ -149,6 +149,8 @@ body:not([data-screen="welcome"]) .brand { display:none; }
   padding:16px 18px calc(12px + env(safe-area-inset-bottom));
   background:linear-gradient(to top, var(--bg) 55%, rgba(7,8,11,0));
 }
+/* On results the page is for reading; a pinned "Scan again" covered the tab bar. */
+#results .dock { position:static; margin:6px 0 0; padding:0; background:none; }
 .linkish {
   align-self:flex-start; border:0; background:none; padding:0; color:var(--volt); font-weight:700;
   text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1.5px;

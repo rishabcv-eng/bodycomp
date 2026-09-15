@@ -3,6 +3,12 @@
 Estimates **body fat %** and **lean mass** from a front and side photo, validated
 against real **DXA scans**. Everything runs on the device — no upload, no API.
 
+<p align="center">
+  <img src="docs/demo.gif" width="300" alt="App demo: the welcome screen, choosing a goal and diet, the scan screen, a body-fat result on a gauge, and the personalised training and meal plan">
+</p>
+<p align="center"><sub>Demo recorded from the real app using its built-in sample body — a real BodyM subject with
+known tape measurements. Live camera capture isn't shown. <a href="https://rishabcv-eng.github.io/bodycomp/">Try it live →</a></sub></p>
+
 **2.82% mean absolute error against clinical DXA**, beating the standard
 tape-measure formula (3.17%) without needing a tape.
 
