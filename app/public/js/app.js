@@ -6,6 +6,7 @@ import { buildMask, qualityCheck } from "./mask.js";
 import { loadModels, analyse, analyseMany } from "./pipeline.js";
 import { ScanController, STEPS, TOLERANCE, HOLD_MS, frameAssessment } from "./scan.js";
 import { buildPlan } from "./plan.js";
+import { showResults, renderMacros, go } from "./ui.js";
 
 const PERSON_CLASSES = [1, 2, 3, 4, 5]; // multiclass: 0 is background
 const MAX_EDGE = 900;
@@ -46,6 +47,7 @@ async function init() {
     }
     await loadModels("models");
     ready = true;
+    document.dispatchEvent(new Event("models-ready"));
     setStatus("Ready. Fill in your details, then start the scan.", "ok");
     refreshUpload();
   } catch (err) {
@@ -146,7 +148,7 @@ function renderResults(out, qcs, profile = formValues()) {
   renderPlan();
 
   $("results").hidden = false;
-  $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  showResults(bf.estimate, profile.sex);
 }
 
 /* ----------------------------------------------------------- camera check --- */
@@ -302,28 +304,36 @@ function renderPlan() {
     + `Real progress is rarely this straight, and lean-mass change in particular depends on training, `
     + `sleep and how long you have been lifting.`;
 
-  const tb = $("p-train");
-  tb.innerHTML = "";
+  const week = $("p-train");
+  week.innerHTML = "";
   for (const d of plan.training.week) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${d.day}</td><td>${d.focus}</td><td>${d.detail}</td>`;
-    tb.appendChild(tr);
+    const row = document.createElement("div");
+    row.className = "day" + (/rest/i.test(d.focus) ? " rest" : "");
+    row.innerHTML = `<span class="day-name">${d.day.slice(0, 3)}</span>` +
+      `<div><b>${d.focus}</b>${d.detail ? `<p>${d.detail}</p>` : ""}</div>`;
+    week.appendChild(row);
   }
   $("p-train-note").textContent = plan.training.note;
 
-  $("p-diet-label").textContent = plan.meals.label.toLowerCase();
-  const mb = $("p-meals");
-  mb.innerHTML = "";
+  $("p-diet-label").textContent = plan.meals.label;
+  const meals = $("p-meals");
+  meals.innerHTML = "";
   for (const m of plan.meals.meals) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${m.name}</td><td>${m.items}</td><td>${m.protein} g</td>`;
-    mb.appendChild(tr);
+    const card = document.createElement("div");
+    card.className = "meal";
+    card.innerHTML = `<div class="meal-top"><b>${m.name}</b><span class="pro-pill">${m.protein} g protein</span></div>` +
+      `<p>${m.items}</p>`;
+    meals.appendChild(card);
   }
-  const tot = document.createElement("tr");
-  tot.innerHTML = `<td><b>Total</b></td><td>${plan.meals.tip}</td><td><b>${plan.meals.coveredProtein} g</b></td>`;
-  mb.appendChild(tot);
+  const total = document.createElement("div");
+  total.className = "meal total";
+  total.innerHTML = `<div class="meal-top"><b>Day total</b><span class="pro-pill">${plan.meals.coveredProtein} g protein</span></div>` +
+    `<p>${plan.meals.tip}</p>`;
+  meals.appendChild(total);
   $("p-meal-note").textContent =
     plan.meals.gapAdvice + (plan.meals.b12 ? " " + plan.meals.b12 : "");
+
+  renderMacros(plan);
 }
 
 /* ------------------------------------------------------------------ mode --- */
@@ -761,10 +771,7 @@ $("lens").addEventListener("change", async e => {
     setGuide("Could not switch camera: " + err.message, "warn");
   }
 });
-$("again").addEventListener("click", () => {
-  $("results").hidden = true;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-});
+$("again").addEventListener("click", () => go("capture"));
 for (const slot of ["front", "side"]) {
   $(`file-${slot}`).addEventListener("change", e => handleFile(slot, e.target.files[0]));
 }

@@ -148,7 +148,7 @@ export function sampleChords(mask, w, h, count = 16) {
 // ordinary "keep adjusting" moment never reads as a fault.
 const PALETTE = {
   adjust: { line: "#6FBECF", soft: "#4A8EA0", glow: "#3E8FA6" },
-  ok:     { line: "#4FE3BE", soft: "#2FA98A", glow: "#3FE0B8" },
+  ok:     { line: "#CCFF3F", soft: "#8DB82A", glow: "#CCFF3F" },
   done:   { line: "#DFFFF6", soft: "#7FE8CD", glow: "#8FFFE4" },
 };
 
@@ -332,7 +332,7 @@ export function alignment(headY, feetY) {
 function drawMarker(ctx, w, h, y, label, ok, below, pal) {
   const x0 = w * 0.14, x1 = w * 0.86;
   const tick = Math.min(w, h) * 0.045;
-  const colour = ok ? "#4FE3BE" : pal.line;
+  const colour = ok ? "#CCFF3F" : pal.line;
 
   ctx.save();
   ctx.strokeStyle = colour;

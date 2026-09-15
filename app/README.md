@@ -55,6 +55,42 @@ the right answer (waist &minus;0.1 cm, hip &minus;0.5, chest &minus;3.8, thigh +
 Open `/selftest.html` to watch the browser reproduce Python's numbers on a known
 input.
 
+## Design
+
+Built for **18–30 year olds** — people who live in Strava, Whoop and Cal AI, not in lab
+reports. So it behaves like a phone app rather than a scrolling report:
+
+**Welcome → About you → Scan → Results**, one screen at a time, with a three-segment
+progress bar and the phone's back gesture wired to history.
+
+- **Dark, one electric accent.** Lime `#CCFF3F` for anything actionable, violet for
+  muscle, sky/amber/coral reserved for the macro split and body-fat bands.
+- **Tap, don't type.** Sex, goal, activity and diet are chips and cards. They write
+  hidden `<select>`s and fire real `input`/`change` events, so `app.js` is unchanged —
+  the redesign lives in `index.html`, `styles.css` and `js/ui.js`.
+- **Goal and diet are asked up front.** The plan is personalised before the scan, so
+  the result lands with a plan already attached instead of a form to fill in afterwards.
+- **A gauge, not a number.** Body fat sits on a semicircle split into the ACE
+  categories for your sex, with a plain-language line under it. The top band reads
+  "Higher", not the clinical term — the plan below is what actually helps.
+- **Results in tabs.** Overview (muscle, breakdown, 12-week before/after), Your plan
+  (calorie target with a macro bar, training week and meals as cards) and Details
+  (measurements, accuracy and known limits).
+
+Every element id `app.js` depends on is preserved; a check confirms none are missing
+or duplicated.
+
+**Two bugs the redesign introduced, both caught before shipping — and both had
+correct content that simply never appeared on screen:**
+
+- The screen router hid every element carrying `data-screen`. `<body>` carries it
+  too (the CSS keys off it), so the first tap on *Start my scan* hid the entire
+  page. Every DOM check still passed; only hit-testing (`elementFromPoint`
+  returning `<html>` everywhere) exposed it. The selector is now `.screen[data-screen]`.
+- Screens faded in from `opacity: 0`. When the browser paused animations, a screen
+  stayed invisible — on a phone in battery saver, a blank result. Screens now slide
+  in without fading.
+
 ## Why a web app
 
 It runs on any phone from a link, which is the whole point for a demo — no store

@@ -2,70 +2,205 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Body Composition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080B">
+<title>bodycomp — your body fat in a minute</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-screen="welcome">
+<div class="app">
 
-<div class="wrap">
-
-  <header class="masthead">
-    <span class="eyebrow">On-device estimate &middot; validated against DXA</span>
-    <h1>Body composition from a phone scan</h1>
-    <p class="lede">Tell us your height, then line yourself up with the on-screen markers. The app
-    confirms each position before moving on. Everything runs inside this browser tab &mdash; no video,
-    photo or measurement is ever uploaded.</p>
-    <p id="status" class="status working">Starting up...</p>
+  <header class="topbar">
+    <button class="icon-btn" id="back" type="button" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.6"/><path d="M8.4 9h7.2l1.8 7h-2.6l-.6 6h-4.4l-.6-6H6.6z"/></svg></span>
+      body<span class="dim">comp</span>
+    </div>
+    <div class="progress" aria-hidden="true"><i></i><i></i><i></i></div>
+    <span class="stepcount" id="stepcount"></span>
   </header>
 
-  <!-- ---------- step 1: details, asked BEFORE capture ---------- -->
-  <section class="panel">
-    <h2>1 &middot; About you</h2>
-    <p class="hint">Your height is the ruler. The camera cannot know how big you are, so every
-    measurement is scaled from the height you give here &mdash; make it accurate.</p>
-    <div class="fields">
-      <label class="field">
-        <span>Height</span>
-        <span class="input-row"><input type="number" id="height" min="120" max="220" step="0.5" value="175"><em>cm</em></span>
-      </label>
-      <label class="field">
-        <span>Weight</span>
-        <span class="input-row"><input type="number" id="weight" min="30" max="250" step="0.1" value="72"><em>kg</em></span>
-      </label>
-      <label class="field">
-        <span>Age</span>
-        <span class="input-row"><input type="number" id="age" min="18" max="80" step="1" value="24"><em>years</em></span>
-      </label>
-      <label class="field">
-        <span>Sex</span>
-        <span class="input-row"><select id="sex"><option value="male">Male</option><option value="female">Female</option></select></span>
-      </label>
+  <p id="status" class="status working">Starting up...</p>
+
+  <!-- ================================================================ welcome -->
+  <section class="screen welcome" data-screen="welcome">
+    <div class="hero-visual" aria-hidden="true">
+      <svg class="figure" viewBox="0 0 160 262">
+        <defs>
+          <linearGradient id="bodyFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#CCFF3F" stop-opacity=".20"/>
+            <stop offset="1" stop-color="#A99BFF" stop-opacity=".08"/>
+          </linearGradient>
+          <linearGradient id="scanGlow" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#CCFF3F" stop-opacity="0"/>
+            <stop offset="1" stop-color="#CCFF3F" stop-opacity=".35"/>
+          </linearGradient>
+          <clipPath id="bodyClip">
+            <circle cx="80" cy="30" r="17"/>
+            <path d="M80 52C62 52 52 60 50 74L38 150C37 158 46 160 48 152L60 94L60 162L56 244C56 254 70 254 70 244L78 176L82 176L90 244C90 254 104 254 104 244L100 162L100 94L112 152C114 160 123 158 122 150L110 74C108 60 98 52 80 52Z"/>
+          </clipPath>
+        </defs>
+        <circle class="outline" cx="80" cy="30" r="17"/>
+        <path class="outline" d="M80 52C62 52 52 60 50 74L38 150C37 158 46 160 48 152L60 94L60 162L56 244C56 254 70 254 70 244L78 176L82 176L90 244C90 254 104 254 104 244L100 162L100 94L112 152C114 160 123 158 122 150L110 74C108 60 98 52 80 52Z"/>
+        <g class="chords" clip-path="url(#bodyClip)">
+          <line x1="20" y1="70" x2="140" y2="70"/><line x1="20" y1="86" x2="140" y2="86"/>
+          <line x1="20" y1="102" x2="140" y2="102"/><line x1="20" y1="118" x2="140" y2="118"/>
+          <line x1="20" y1="134" x2="140" y2="134"/><line x1="20" y1="150" x2="140" y2="150"/>
+          <line x1="20" y1="166" x2="140" y2="166"/><line x1="20" y1="182" x2="140" y2="182"/>
+          <line x1="20" y1="198" x2="140" y2="198"/><line x1="20" y1="214" x2="140" y2="214"/>
+          <line x1="20" y1="230" x2="140" y2="230"/>
+        </g>
+        <g class="scan">
+          <rect x="14" y="-22" width="132" height="22" fill="url(#scanGlow)"/>
+          <rect x="14" y="0" width="132" height="2" rx="1" fill="#CCFF3F"/>
+        </g>
+      </svg>
+      <span class="float f1">Body fat<b>18.4%</b></span>
+      <span class="float f2">Lean mass<b>61.2 kg</b></span>
+    </div>
+
+    <h1>Know your body fat.<br><span class="hl">Not just your weight.</span></h1>
+    <p class="lede">Three quick poses in front of your phone. A model trained on 11,701 clinical
+    DXA scans does the rest &mdash; and nothing ever leaves your device.</p>
+
+    <div class="stats">
+      <div><b>&plusmn;2.8%</b><span>average error vs a DXA scan</span></div>
+      <div><b>0</b><span>photos uploaded, ever</span></div>
+      <div><b>~60s</b><span>from start to result</span></div>
+    </div>
+
+    <div class="cta dock">
+      <button class="btn primary" type="button" data-go="profile">
+        Start my scan
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <button class="btn secondary js-needs-models" type="button" id="sample" disabled>See a demo result</button>
+    </div>
+    <p class="fine">A fitness estimate, not a medical device.</p>
+  </section>
+
+  <!-- ================================================================ profile -->
+  <section class="screen" data-screen="profile" hidden>
+    <div class="screen-head">
+      <p class="kicker">About you</p>
+      <h2>Let's set you up</h2>
+      <p class="sub">Your height is the ruler for every measurement &mdash; a camera can't tell how tall
+      you are, so make it accurate.</p>
+    </div>
+
+    <div class="card">
+      <div class="nums">
+        <label class="num"><span>Height</span>
+          <div><input type="number" id="height" inputmode="decimal" min="120" max="220" step="0.5" value="175"><em>cm</em></div>
+        </label>
+        <label class="num"><span>Weight</span>
+          <div><input type="number" id="weight" inputmode="decimal" min="30" max="250" step="0.1" value="72"><em>kg</em></div>
+        </label>
+        <label class="num"><span>Age</span>
+          <div><input type="number" id="age" inputmode="numeric" min="18" max="80" step="1" value="24"><em>yrs</em></div>
+        </label>
+      </div>
+
+      <div class="field-label">Sex</div>
+      <div class="chips two" data-bind="sex" role="group" aria-label="Sex">
+        <button type="button" class="chip" data-value="male">Male</button>
+        <button type="button" class="chip" data-value="female">Female</button>
+      </div>
+      <select id="sex" class="sr-only" tabindex="-1" aria-hidden="true">
+        <option value="male">Male</option><option value="female">Female</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="field-label">What's your goal?</div>
+      <div class="goals" data-bind="p-goal" role="group" aria-label="Goal">
+        <button type="button" class="goal" data-value="cut"><b>Lose fat</b><span>Lean out, keep the muscle</span></button>
+        <button type="button" class="goal" data-value="recomp"><b>Recomp</b><span>Leaner and stronger at once</span></button>
+        <button type="button" class="goal" data-value="maintain"><b>Maintain</b><span>Hold where you are</span></button>
+        <button type="button" class="goal" data-value="gain"><b>Build muscle</b><span>Add size and strength</span></button>
+      </div>
+      <select id="p-goal" class="sr-only" tabindex="-1" aria-hidden="true">
+        <option value="cut" data-short="Lose fat">Lose fat</option>
+        <option value="recomp" data-short="Recomp">Recomposition</option>
+        <option value="maintain" data-short="Maintain">Maintain</option>
+        <option value="gain" data-short="Build muscle">Build muscle</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="field-label">How active are you?</div>
+      <div class="chips wrap" data-bind="p-activity" role="group" aria-label="Activity">
+        <button type="button" class="chip" data-value="sedentary">Mostly sitting</button>
+        <button type="button" class="chip" data-value="light">1&ndash;3&times; a week</button>
+        <button type="button" class="chip" data-value="moderate">3&ndash;5&times; a week</button>
+        <button type="button" class="chip" data-value="active">6&ndash;7&times; a week</button>
+        <button type="button" class="chip" data-value="athlete">Athlete</button>
+      </div>
+      <select id="p-activity" class="sr-only" tabindex="-1" aria-hidden="true">
+        <option value="sedentary">Desk job, little exercise</option>
+        <option value="light">Light, 1-3 days</option>
+        <option value="moderate" selected>Moderate, 3-5 days</option>
+        <option value="active">Hard, 6-7 days</option>
+        <option value="athlete">Physical job / twice daily</option>
+      </select>
+
+      <div class="field-label">How do you eat?</div>
+      <div class="chips two" data-bind="p-diet" role="group" aria-label="Diet">
+        <button type="button" class="chip" data-value="veg">Vegetarian</button>
+        <button type="button" class="chip" data-value="nonveg">Non-veg</button>
+      </div>
+      <select id="p-diet" class="sr-only" tabindex="-1" aria-hidden="true">
+        <option value="veg">Vegetarian</option><option value="nonveg">Non-vegetarian</option>
+      </select>
+    </div>
+
+    <div class="dock">
+      <button class="btn primary" type="button" id="to-capture">
+        Continue to scan
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
     </div>
   </section>
 
-  <!-- ---------- step 2: capture ---------- -->
-  <section class="panel">
-    <div class="panel-head">
-      <h2>2 &middot; Capture</h2>
-      <div class="modes" role="tablist">
-        <button class="mode on" id="mode-scan" role="tab" aria-selected="true">Scan</button>
-        <button class="mode" id="mode-upload" role="tab" aria-selected="false">Upload photos</button>
+  <!-- ================================================================ capture -->
+  <section class="screen" data-screen="capture" hidden>
+    <div class="screen-head">
+      <p class="kicker">Scan</p>
+      <h2>Strike three poses</h2>
+      <p class="sub">Prop your phone at hip height, step back until your head and feet sit on the
+      markers, then follow the prompts.</p>
+    </div>
+
+    <div class="tips">
+      <div class="tip">
+        <i><svg viewBox="0 0 24 24"><path d="M8 3l4 2 4-2 5 4-3 4h-2v10H8V11H6L3 7z"/></svg></i>
+        <b>Fitted clothes</b>
+        <span>Baggy fabric reads as body &mdash; a loose tee adds ~1.6 fat points.</span>
+      </div>
+      <div class="tip">
+        <i><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><circle cx="12" cy="8" r="1.8"/><path d="M12 10.5v4.5m-2.5 4 2.5-4 2.5 4"/></svg></i>
+        <b>Head to toe</b>
+        <span>Your height sets the scale, so your feet must be in frame.</span>
+      </div>
+      <div class="tip">
+        <i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></i>
+        <b>Good light</b>
+        <span>Plain wall behind you, light falling on you from the front.</span>
       </div>
     </div>
 
-    <!-- scan -->
-    <div id="pane-scan">
-      <p class="hint">Prop the phone up so your whole body fits. The app walks you through three
-      positions, confirming each before moving on &mdash; nothing is rushed.</p>
-      <p class="warnbox"><b>Wear fitted clothing.</b> The outline <em>is</em> the measurement, so
-      fabric standing off your body is read as body. Measured on this pipeline: a normal t-shirt
-      adds about <b>+5 cm to the waist and +1.6 body-fat points</b>; a loose hoodie adds
-      +9&ndash;12 cm. Bare torso or close-fitting clothes give the honest number.</p>
+    <div class="segmented" role="tablist">
+      <button class="mode on" id="mode-scan" role="tab" aria-selected="true" type="button">Live scan</button>
+      <button class="mode" id="mode-upload" role="tab" aria-selected="false" type="button">Upload photos</button>
+    </div>
 
+    <!-- live scan -->
+    <div id="pane-scan" class="pane">
       <ol class="steps" id="steps"></ol>
 
       <div class="stage-wrap" id="stage-wrap" hidden>
@@ -84,9 +219,8 @@
           <span>Lens</span>
           <select id="lens"></select>
         </label>
-        <p class="hint" id="camctl-hint">If your whole body will not fit, switch to a wider lens
-        rather than backing further away. Zoom does not affect accuracy &mdash; scale comes from your
-        height, not the camera.</p>
+        <p class="sub" id="camctl-hint">Can't fit your whole body? Switch to a wider lens instead of
+        backing further away. Zoom doesn't affect accuracy.</p>
       </div>
 
       <p class="guide" id="guide" hidden></p>
@@ -94,30 +228,33 @@
       <p class="warnbox" id="stuck" hidden></p>
 
       <div class="scan-actions">
-        <button class="run" id="camera-start">Turn on camera</button>
-        <button class="ghost" id="scan-finish" hidden>Finish with what I have</button>
-        <button class="ghost" id="camera-stop" hidden>Cancel</button>
+        <button class="btn primary" id="camera-start" type="button">
+          Open camera
+          <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        </button>
+        <button class="btn secondary" id="scan-finish" type="button" hidden>Finish with what I have</button>
+        <button class="btn ghost" id="camera-stop" type="button" hidden>Cancel</button>
       </div>
-      <p class="hint"><button class="linkish" id="camcheck">Test my camera (5 seconds)</button>
-      &mdash; measures frame rate and every positioning check on your device, and names what is
-      blocking you. Run this first if the scan will not lock on.</p>
-      <pre class="report" id="camreport" hidden></pre>
 
-      <p class="hint">No camera to hand? <button class="linkish" id="sample">Run a sample body</button>
-      &mdash; a real scanned subject from the BodyM dataset, whose true tape measurements are known,
-      so you can see the output next to the right answer.</p>
+      <details class="help">
+        <summary>Camera not cooperating?</summary>
+        <p><button class="linkish" id="camcheck" type="button">Test my camera (5 seconds)</button> &mdash;
+        measures frame rate and every positioning check, then names exactly what's blocking you.</p>
+        <pre class="report" id="camreport" hidden></pre>
+        <p>No camera handy? <button class="linkish js-demo js-needs-models" type="button" disabled>See a demo result</button>
+        from a real scanned body with known tape measurements.</p>
+      </details>
     </div>
 
-    <!-- upload fallback -->
-    <div id="pane-upload" hidden>
+    <!-- upload -->
+    <div id="pane-upload" class="pane" hidden>
       <p class="guide warn" id="upload-note" hidden></p>
-      <p class="hint">No camera? Add a front photo and a side photo instead. Same pipeline,
-      one frame per view rather than several. Stand square to the camera with your arms out
-      about 30&deg;, whole body in frame, plain background.</p>
+      <p class="sub">Take one photo from the front and one from the side &mdash; arms slightly out, whole
+      body in frame, plain background.</p>
       <div class="shots">
         <div class="shot">
           <label class="drop" id="drop-front" for="file-front">
-            <span class="slot">Front view</span>
+            <span class="slot">Front</span>
             <span class="label" id="label-front">Tap to add a photo</span>
           </label>
           <input type="file" id="file-front" accept="image/*" hidden>
@@ -125,163 +262,168 @@
         </div>
         <div class="shot">
           <label class="drop" id="drop-side" for="file-side">
-            <span class="slot">Side view</span>
+            <span class="slot">Side</span>
             <span class="label" id="label-side">Tap to add a photo</span>
           </label>
           <input type="file" id="file-side" accept="image/*" hidden>
           <canvas id="preview-side" class="preview"></canvas>
         </div>
       </div>
-      <button id="run" class="run" disabled>Estimate body composition</button>
+      <button id="run" class="btn primary" type="button" disabled>Get my results</button>
     </div>
+
+    <section class="card blocked" id="blocked" hidden>
+      <h3>Almost &mdash; let's try that again</h3>
+      <p class="sub">We only show a result when the capture passes every check. A bad capture gives a
+      confident but wrong number.</p>
+      <ul id="issues" class="issues"></ul>
+    </section>
   </section>
 
-  <section class="panel blocked" id="blocked" hidden>
-    <h2>Not usable yet</h2>
-    <p class="hint">The estimate is only shown when the capture checks pass. A bad capture would
-    produce a confident but wrong number.</p>
-    <ul id="issues" class="issues"></ul>
-  </section>
+  <!-- ================================================================ results -->
+  <section class="screen" data-screen="results" id="results" hidden>
+    <div class="screen-head">
+      <p class="kicker">Your results</p>
+      <h2>Your body, by the numbers</h2>
+    </div>
 
-  <!-- ---------- results ---------- -->
-  <section id="results" class="results" hidden>
     <p class="sample-banner" id="sample-banner" hidden></p>
-    <div class="headline">
-      <div class="big">
-        <span class="k">Body fat</span>
-        <span class="v"><span id="bf-value">--</span><span class="u">%</span></span>
-        <span class="r" id="bf-range"></span>
+
+    <div class="card gauge-card">
+      <div class="gauge">
+        <svg id="bf-gauge" viewBox="0 0 240 132" role="img" aria-label="Body fat gauge"></svg>
+        <div class="gauge-read">
+          <span class="gauge-k">Body fat</span>
+          <span class="gauge-v"><span id="bf-value">--</span><small>%</small></span>
+        </div>
       </div>
-      <div class="big rose">
-        <span class="k">Arm + leg muscle</span>
-        <span class="v"><span id="alm-value">--</span><span class="u">kg</span></span>
-        <span class="r" id="alm-range"></span>
+      <span class="band" id="bf-category">--</span>
+      <p class="band-caption" id="bf-caption"></p>
+      <p class="range" id="bf-range"></p>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab on" data-tab="overview" role="tab">Overview</button>
+      <button type="button" class="tab" data-tab="plan" role="tab">Your plan</button>
+      <button type="button" class="tab" data-tab="details" role="tab">Details</button>
+    </div>
+
+    <!-- overview -->
+    <div data-panel="overview">
+      <div class="card muscle">
+        <div>
+          <span class="k">Arm + leg muscle</span>
+          <span class="big"><span id="alm-value">--</span><small>kg</small></span>
+          <span class="range" id="alm-range"></span>
+        </div>
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><span class="k">Fat mass</span><span class="v" id="d-fat">--</span></div>
+        <div class="tile"><span class="k">Fat-free mass</span><span class="v" id="d-lean">--</span></div>
+        <div class="tile"><span class="k">Muscle index</span><span class="v" id="d-almi">--</span></div>
+        <div class="tile"><span class="k">Muscle share</span><span class="v" id="d-musclepct">--</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Where 12 weeks takes you</h3><span class="pill" data-label-for="p-goal"></span></div>
+        <div class="beforeafter">
+          <div class="ba"><span class="k">Now</span><span class="v" id="p-now-bf">--</span><span class="r" id="p-now-rest"></span></div>
+          <div class="arrow" aria-hidden="true">&rarr;</div>
+          <div class="ba to"><span class="k">Week 12</span><span class="v" id="p-then-bf">--</span><span class="r" id="p-then-rest"></span></div>
+        </div>
+        <p class="sub" id="p-proj-note"></p>
+        <button class="linkish" type="button" data-tab-go="plan">See the plan that gets you there &rarr;</button>
       </div>
     </div>
 
-    <div class="panel">
-      <h2>Breakdown</h2>
-      <div class="derived">
-        <div><span class="k">Fat mass</span><span class="v" id="d-fat">--</span></div>
-        <div><span class="k">Fat-free mass</span><span class="v" id="d-lean">--</span></div>
-        <div><span class="k">Muscle index</span><span class="v" id="d-almi">--</span></div>
-        <div><span class="k">Muscle share</span><span class="v" id="d-musclepct">--</span></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>Measurements read from your body</h2>
-      <div class="tbl-scroll">
-        <table>
-          <thead><tr><th>Measurement</th><th>Estimate</th><th id="spread-head" hidden>Frame spread</th></tr></thead>
-          <tbody id="measure-body"></tbody>
-        </table>
-      </div>
-      <p class="hint" id="qc-note"></p>
-    </div>
-
-    <div class="panel accuracy">
-      <h2>How much to trust this</h2>
-      <p class="hint" id="accuracy-note"></p>
-      <p class="hint">Accuracy drops for very lean bodies, where the training data is thinnest,
-      and the model tends to read about 1.4 points low for people of Asian descent &mdash; a known
-      limit of measuring body composition from body shape. Using several frames reduces random
-      error only; it does not remove that bias.</p>
-    </div>
-
-
-    <div class="panel" id="plan-panel">
-      <h2>3 &middot; Your plan</h2>
-      <p class="hint">Built from your <b>lean mass</b>, not your weight. Two people at the same
-      weight and height need different calories, and the scan is what tells them apart.</p>
-
-      <div class="fields three">
-        <label class="field">
-          <span>Goal</span>
-          <span class="input-row"><select id="p-goal">
-            <option value="cut">Lose fat</option>
-            <option value="recomp">Recomposition</option>
-            <option value="maintain">Maintain</option>
-            <option value="gain">Build muscle</option>
-          </select></span>
-        </label>
-        <label class="field">
-          <span>Activity</span>
-          <span class="input-row"><select id="p-activity">
-            <option value="sedentary">Desk job, little exercise</option>
-            <option value="light">Light, 1-3 days</option>
-            <option value="moderate" selected>Moderate, 3-5 days</option>
-            <option value="active">Hard, 6-7 days</option>
-            <option value="athlete">Physical job / twice daily</option>
-          </select></span>
-        </label>
-        <label class="field">
-          <span>Diet</span>
-          <span class="input-row"><select id="p-diet">
-            <option value="veg">Vegetarian</option>
-            <option value="nonveg">Non-vegetarian</option>
-          </select></span>
-        </label>
+    <!-- plan -->
+    <div data-panel="plan" id="plan-panel" hidden>
+      <div class="card">
+        <div class="field-label">Goal</div>
+        <div class="chips wrap" data-bind="p-goal" role="group" aria-label="Goal">
+          <button type="button" class="chip" data-value="cut">Lose fat</button>
+          <button type="button" class="chip" data-value="recomp">Recomp</button>
+          <button type="button" class="chip" data-value="maintain">Maintain</button>
+          <button type="button" class="chip" data-value="gain">Build muscle</button>
+        </div>
+        <div class="field-label">Activity</div>
+        <div class="chips wrap" data-bind="p-activity" role="group" aria-label="Activity">
+          <button type="button" class="chip" data-value="sedentary">Sitting</button>
+          <button type="button" class="chip" data-value="light">1&ndash;3&times;</button>
+          <button type="button" class="chip" data-value="moderate">3&ndash;5&times;</button>
+          <button type="button" class="chip" data-value="active">6&ndash;7&times;</button>
+          <button type="button" class="chip" data-value="athlete">Athlete</button>
+        </div>
+        <div class="field-label">Diet</div>
+        <div class="chips two" data-bind="p-diet" role="group" aria-label="Diet">
+          <button type="button" class="chip" data-value="veg">Vegetarian</button>
+          <button type="button" class="chip" data-value="nonveg">Non-veg</button>
+        </div>
       </div>
 
       <ul class="flags" id="p-flags" hidden></ul>
 
-      <div class="derived" id="p-energy">
-        <div><span class="k">Daily calories</span><span class="v" id="p-kcal">--</span></div>
-        <div><span class="k">Protein</span><span class="v" id="p-pro">--</span></div>
-        <div><span class="k">Carbs</span><span class="v" id="p-carb">--</span></div>
-        <div><span class="k">Fat</span><span class="v" id="p-fat">--</span></div>
-      </div>
-      <p class="hint" id="p-energy-note"></p>
-
-      <h3 class="subhead">Where 12 weeks takes you</h3>
-      <div class="beforeafter">
-        <div class="ba">
-          <span class="k">Now</span>
-          <span class="v" id="p-now-bf">--</span>
-          <span class="r" id="p-now-rest"></span>
+      <div class="card energy" id="p-energy">
+        <span class="k">Your daily target</span>
+        <span class="big" id="p-kcal">--</span>
+        <div class="macrobar" id="p-macrobar"></div>
+        <div class="macros">
+          <div><span class="k"><i class="dot pro"></i> Protein <em id="p-pro-pct"></em></span><b id="p-pro">--</b></div>
+          <div><span class="k"><i class="dot carb"></i> Carbs <em id="p-carb-pct"></em></span><b id="p-carb">--</b></div>
+          <div><span class="k"><i class="dot fat"></i> Fat <em id="p-fat-pct"></em></span><b id="p-fat">--</b></div>
         </div>
-        <div class="arrow" aria-hidden="true">&rarr;</div>
-        <div class="ba to">
-          <span class="k">Week 12</span>
-          <span class="v" id="p-then-bf">--</span>
-          <span class="r" id="p-then-rest"></span>
-        </div>
+        <p class="sub" id="p-energy-note"></p>
       </div>
-      <p class="hint" id="p-proj-note"></p>
 
-      <h3 class="subhead">Training week</h3>
-      <div class="tbl-scroll">
-        <table>
-          <thead><tr><th>Day</th><th>Focus</th><th>Session</th></tr></thead>
-          <tbody id="p-train"></tbody>
-        </table>
+      <div class="card">
+        <div class="card-head"><h3>Your training week</h3></div>
+        <div class="week" id="p-train"></div>
+        <p class="sub" id="p-train-note"></p>
       </div>
-      <p class="hint" id="p-train-note"></p>
 
-      <h3 class="subhead">A day of food &mdash; <span id="p-diet-label"></span></h3>
-      <div class="tbl-scroll">
-        <table>
-          <thead><tr><th>Meal</th><th>Food</th><th>Protein</th></tr></thead>
-          <tbody id="p-meals"></tbody>
-        </table>
+      <div class="card">
+        <div class="card-head"><h3>A day of food</h3><span class="pill" id="p-diet-label"></span></div>
+        <div class="meals" id="p-meals"></div>
+        <p class="sub" id="p-meal-note"></p>
       </div>
-      <p class="hint" id="p-meal-note"></p>
 
-      <p class="disclaimer" id="p-disclaimer"><b>General fitness guidance, not medical or dietetic
-      advice.</b> If you are pregnant, managing a health condition, or taking medication, talk to a
-      doctor or a registered dietitian before changing how you eat or train.</p>
+      <p class="fineprint" id="p-disclaimer"><b>General fitness guidance, not medical advice.</b> If you're
+      pregnant, managing a health condition or on medication, talk to a doctor or registered dietitian
+      before changing how you eat or train.</p>
     </div>
 
-    <button class="ghost wide" id="again">Scan again</button>
-  </section>
+    <!-- details -->
+    <div data-panel="details" hidden>
+      <div class="card">
+        <div class="card-head"><h3>Measurements from your scan</h3></div>
+        <div class="tbl-scroll">
+          <table>
+            <thead><tr><th>Measurement</th><th>Estimate</th><th id="spread-head" hidden>Spread</th></tr></thead>
+            <tbody id="measure-body"></tbody>
+          </table>
+        </div>
+        <p class="sub" id="qc-note"></p>
+      </div>
 
-  <footer>
-    <p class="disclaimer"><b>Not a medical device.</b> This is a fitness and wellness estimate,
-    not a diagnosis. Do not use it to make clinical decisions.</p>
-    <p class="colophon">Trained on 11,701 DXA scans (NHANES 2011&ndash;2018) and 2,018 scanned
-    bodies (Amazon BodyM). Runs entirely on your device.</p>
-  </footer>
+      <div class="card trust">
+        <div class="card-head"><h3>How much to trust this</h3></div>
+        <p class="sub" id="accuracy-note"></p>
+        <p class="sub">Accuracy drops for very lean bodies, where the training data is thinnest, and the
+        model tends to read about 1.4 points low for people of Asian descent &mdash; a known limit of
+        measuring body composition from body shape. Several frames reduce random error only; they don't
+        remove that bias.</p>
+      </div>
+
+      <p class="fineprint"><b>Not a medical device.</b> A fitness and wellness estimate, not a diagnosis.
+      Trained on 11,701 DXA scans (NHANES 2011&ndash;2018) and 2,018 scanned bodies (Amazon BodyM).
+      Runs entirely on your device.</p>
+    </div>
+
+    <div class="dock">
+      <button class="btn secondary" id="again" type="button">Scan again</button>
+    </div>
+  </section>
 
 </div>
 
