@@ -499,3 +499,43 @@ td:first-child { font-weight:600; color:var(--text); }
 @media (prefers-reduced-motion:reduce) {
   *, *::before, *::after { animation:none !important; transition:none !important; }
 }
+
+/* ---------------------------------------------------- rank, streak, badges */
+.tab { padding:0 4px; font-size:13.5px; }
+
+.rankcard { background:radial-gradient(360px 180px at 100% 0%, rgba(102,212,255,.13), transparent 70%), var(--card); }
+.rankbar { position:relative; height:12px; border-radius:99px; overflow:hidden;
+  background:linear-gradient(90deg, var(--coral), var(--amber) 45%, var(--lime) 75%, var(--volt)); }
+.rankbar span { position:absolute; top:0; bottom:0; right:0; background:rgba(7,8,11,.72); transition:left .6s ease; }
+.rank-line { font-family:var(--display); font-size:21px; font-weight:800; letter-spacing:-.02em; }
+.rank-line b { color:var(--volt); }
+
+.streakcard { flex-direction:row; align-items:center; justify-content:space-between;
+  background:radial-gradient(320px 160px at 0% 0%, rgba(204,255,63,.14), transparent 70%), var(--card); }
+.streak-main { display:flex; flex-direction:column; gap:2px; }
+.streak-num { font-family:var(--display); font-size:56px; font-weight:800; line-height:.9; letter-spacing:-.05em; color:var(--volt); }
+.streak-side { display:flex; flex-direction:column; gap:10px; text-align:right; }
+.streak-side b { font-family:var(--display); font-size:19px; font-weight:800; }
+.streak-side > div { display:flex; flex-direction:column; gap:1px; }
+
+.trend { width:100%; height:auto; display:block; }
+.trend .line { fill:none; stroke:var(--volt); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
+.trend .area { fill:rgba(204,255,63,.12); }
+.trend .dot { fill:var(--volt); }
+.trend .dot.last { fill:var(--text); stroke:var(--volt); stroke-width:3; }
+.trend .grid { stroke:var(--line); stroke-width:1; stroke-dasharray:3 5; }
+.trend .lab { fill:var(--muted); font-family:var(--mono); font-size:11px; }
+.trend .empty { fill:var(--muted); font-family:var(--body); font-size:13px; }
+
+.badgegrid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.badge { display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:14px;
+  background:var(--card-2); border:1px solid var(--line); opacity:.45; }
+.badge.earned { opacity:1; border-color:var(--volt); background:var(--volt-soft); }
+.badge i { flex:none; width:34px; height:34px; border-radius:11px; display:grid; place-items:center;
+  font-family:var(--display); font-size:13px; font-weight:800; font-style:normal;
+  background:var(--card-3); color:var(--muted); }
+.badge.earned i { background:var(--volt); color:var(--volt-ink); }
+.badge b { font-size:13px; line-height:1.2; }
+.badge span { display:block; font-size:11px; color:var(--muted); line-height:1.25; }
+
+.results-actions { display:flex; flex-direction:column; gap:8px; }

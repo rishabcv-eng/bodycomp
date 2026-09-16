@@ -5,6 +5,9 @@
 // logic is untouched - this module only decides which screen is showing and
 // turns plain form controls into something that feels like an app.
 
+import { streak, deltas, badges, trendPoints, clearHistory } from "./progress.js";
+import { shareResult } from "./share.js";
+
 const $ = id => document.getElementById(id);
 const SCREENS = ["welcome", "profile", "capture", "results"];
 const STEP_OF = { profile: 1, capture: 2, results: 3 };
@@ -163,9 +166,106 @@ export function renderMacros(plan) {
   $("p-fat-pct").textContent = `${pct(f)}%`;
 }
 
+/* ----------------------------------------------------- rank and progress --- */
+
+let lastResult = null;            // what the share card draws
+
+/** Where the user sits in their own age and sex band. */
+function renderRank(r, sex) {
+  const card = $("rank-band").closest(".card");
+  if (!r) { card.hidden = true; return; }
+  card.hidden = false;
+  const group = `${sex === 1 ? "men" : "women"} aged ${r.band}`;
+  $("rank-band").textContent = `${r.n.toLocaleString()} people`;
+  $("rank-fill").style.left = `${Math.max(0, Math.min(100, r.leanerThan))}%`;
+  $("rank-line").innerHTML = `Leaner than <b>${Math.round(r.leanerThan)}%</b> of ${group}`;
+  $("rank-note").textContent =
+    `Compared with ${r.n.toLocaleString()} ${group} who had real DXA scans (NHANES 2011-2018)` +
+    (r.moreMuscleThan != null
+      ? `, and carrying more muscle for your height than ${Math.round(r.moreMuscleThan)}% of them` : "") +
+    `. ${r.exact ? "" : "Your age is outside the survey, so the nearest band is used. "}` +
+    `It's a US survey sample, and leaner isn't automatically healthier.`;
+}
+
+function renderTrend(history) {
+  const svg = $("trend-chart");
+  const W = 320, H = 130;
+  if (history.length < 2) {
+    svg.innerHTML = `<text class="empty" x="${W / 2}" y="${H / 2}" text-anchor="middle">` +
+      `Scan again in a week to start your trend</text>`;
+    $("trend-change").hidden = true;
+    $("trend-note").textContent = history.length
+      ? "One scan so far. The second is where this starts being useful."
+      : "";
+    return;
+  }
+  const values = history.map(e => e.bodyFatPct);
+  const pts = trendPoints(values, W, H, 18);
+  const line = pts.map(p => p.join(",")).join(" ");
+  const lo = Math.min(...values), hi = Math.max(...values);
+  svg.innerHTML =
+    `<line class="grid" x1="8" y1="${H - 8}" x2="${W - 8}" y2="${H - 8}"/>` +
+    `<polygon class="area" points="${pts[0][0]},${H - 8} ${line} ${pts[pts.length - 1][0]},${H - 8}"/>` +
+    `<polyline class="line" points="${line}"/>` +
+    pts.map((p, i) => {
+      const last = i === pts.length - 1;
+      return `<circle class="dot${last ? " last" : ""}" cx="${p[0]}" cy="${p[1]}" r="${last ? 5 : 3}"/>`;
+    }).join("") +
+    `<text class="lab" x="6" y="15">${hi.toFixed(1)}%</text>` +
+    `<text class="lab" x="6" y="${H - 15}">${lo.toFixed(1)}%</text>`;
+
+  const d = deltas(history);
+  const change = d.sinceFirst.bodyFat;
+  const sign = v => (v > 0 ? "+" : "");
+  $("trend-change").hidden = false;
+  $("trend-change").textContent = `${sign(change)}${change} pts in ${d.sinceFirst.days} days`;
+  $("trend-note").textContent =
+    `Since your first scan: ${sign(change)}${change} points body fat, ` +
+    `${sign(d.sinceFirst.lean)}${d.sinceFirst.lean} kg lean. One scan carries about 2.8 points of ` +
+    `error, so the direction across several scans means more than any single step.`;
+}
+
+function renderProgress(history, r) {
+  const s = streak(history);
+  $("streak-weeks").textContent = s.weeks;
+  $("streak-scans").textContent = s.scans;
+  $("streak-last").textContent =
+    s.daysSinceLast === null ? "--" : s.daysSinceLast === 0 ? "today" : `${s.daysSinceLast}d ago`;
+  $("streak-note").textContent = s.weeks >= 2
+    ? `${s.weeks} weeks running. Once a week is the right rhythm - body composition doesn't move day to day.`
+    : "Scan once a week to build a streak. Weekly, not daily: bodies don't change that fast.";
+
+  renderTrend(history);
+
+  const b = badges(history, r);
+  $("badge-count").textContent = `${b.earned} of ${b.total}`;
+  $("badge-grid").innerHTML = b.badges.map(x =>
+    `<div class="badge${x.earned ? " earned" : ""}"><i>${x.icon}</i>` +
+    `<div><b>${x.label}</b><span>${x.desc}</span></div></div>`).join("");
+}
+
 /** Called by app.js once a result exists. */
-export function showResults(bf, sex) {
-  renderGauge(bf, sex === 1 ? "male" : "female");
+export function showResults(bf, sex, ctx = {}) {
+  const sexKey = sex === 1 ? "male" : "female";
+  renderGauge(bf, sexKey);
+  renderRank(ctx.rank, sex);
+  renderProgress(ctx.history || [], ctx.rank);
+
+  const d = deltas(ctx.history || []);
+  lastResult = {
+    bodyFatPct: bf,
+    band: bodyFatBand(bf, sexKey).label,
+    leanerThan: ctx.rank?.leanerThan ?? null,
+    group: ctx.rank ? `${sex === 1 ? "men" : "women"} aged ${ctx.rank.band}` : "",
+    fatFreeMassKg: ctx.entry?.fatFreeMassKg ?? 0,
+    weightKg: ctx.entry?.weightKg ?? 0,
+    scans: (ctx.history || []).length || 1,
+    ...(d ? {
+      changeLabel: "Since first",
+      changeValue: `${d.sinceFirst.bodyFat > 0 ? "+" : ""}${d.sinceFirst.bodyFat}%`,
+    } : {}),
+  };
+
   syncChips();
   showTab("overview");
   go("results");
@@ -204,6 +304,30 @@ function wire() {
   const enable = () => document.querySelectorAll(".js-needs-models").forEach(b => { b.disabled = false; });
   document.addEventListener("models-ready", enable);
   if (window.__bodycomp?.ready) enable();
+
+  $("share").addEventListener("click", async () => {
+    if (!lastResult) return;
+    const btn = $("share");
+    const markup = btn.innerHTML;
+    btn.disabled = true;
+    try {
+      const how = await shareResult(lastResult);
+      btn.textContent = how === "downloaded" ? "Saved to your photos" :
+                        how === "cancelled" ? "Share cancelled" : "Shared";
+    } catch (err) {
+      console.error(err);
+      btn.textContent = "Couldn't create the image";
+    }
+    setTimeout(() => { btn.innerHTML = markup; btn.disabled = false; }, 2200);
+  });
+
+  $("clear-history").addEventListener("click", () => {
+    clearHistory();
+    renderProgress([], null);
+    const btn = $("clear-history");
+    btn.textContent = "History deleted";
+    setTimeout(() => { btn.textContent = "Delete my history"; }, 2000);
+  });
 
   bindChips();
 }

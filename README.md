@@ -106,6 +106,22 @@ above the ankles, it has lost the legs. Both implementations now carry the check
 and both reject the photo.
 
 
+## A leaderboard that costs no privacy
+
+A shared leaderboard needs accounts, a server and a database of other people's body
+composition — which would destroy this app's one real property, that nothing ever
+leaves the device.
+
+So the comparison group is the population the models were trained against:
+**11,494 adults with real DXA scans**. Percentile curves by sex and age band ship
+as a 9 KB file and the lookup runs on-device, giving *"Leaner than 76% of women
+aged 30-39"* at zero privacy cost.
+
+Alongside it: scan history and a trend chart, a **weekly** streak (body composition
+doesn't move day to day), badges for showing up and for direction of travel, and a
+share card drawn on-device that carries the accuracy claim and the "not a medical
+device" line with it. All in `localStorage`, deletable in one tap.
+
 ## Clothing is the biggest practical limit
 
 The silhouette is the measurement, so fabric standing off the body is read as body.

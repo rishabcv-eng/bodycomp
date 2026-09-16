@@ -248,6 +248,56 @@ A status banner across the top of the viewfinder carries a single short verdict,
 large enough to read at arm's length while posing. It turns green on lock and
 near-white on capture.
 
+## Motivation, without an account
+
+One measurement is a demo; what makes an app worth reopening is the trend. All of
+this works with no backend, no sign-up and nothing leaving the device.
+
+### The leaderboard problem
+
+A real leaderboard needs accounts, a server, and a database of other people's
+body composition — which would destroy the one property this app actually has,
+and GitHub Pages can't host a backend anyway.
+
+So the comparison group is the population the models were trained against:
+**11,494 adults with real DXA scans** (NHANES 2011–2018). `src/percentiles.py`
+bakes P0–P100 curves for body fat and ALMI, by sex and age band, into a 9 KB file;
+`js/rank.js` does the lookup on-device. You get *"Leaner than 76% of women aged
+30-39"* — ranked against real people, at zero privacy cost.
+
+Sanity-checked in tests: the male median lands at 50.0%, a lean man at 99.8%, and
+28% body fat ranks a woman at 88.3% but a man far lower — the same number has to
+mean different things by sex.
+
+Stated on screen, because it's easy to overstate: it's a US survey sample, leaner
+isn't automatically healthier, and the estimate's own ±2.8 points is wider than a
+few percentile places.
+
+### Progress, streaks and badges
+
+`js/progress.js` keeps history in `localStorage`:
+
+- **Weekly streak, not daily.** Body composition doesn't move day to day, and a
+  daily streak would push people to scan noise.
+- **Re-scans inside an hour replace, not append** — someone redoing a capture they
+  weren't happy with made one measurement, not two.
+- **Badges reward what the user controls**: showing up, and direction of travel.
+  Nobody is penalised for starting further out.
+- **Corrupt or blocked storage reads as empty** rather than throwing, and one tap
+  deletes everything for good.
+
+The demo body is never written to history — it's someone else's measurement.
+
+### Share card
+
+`js/share.js` draws a 1080×1350 card on a canvas from numbers already on screen —
+no photo, nothing identifying — and hands it to the OS share sheet, falling back
+to a download. It carries the accuracy claim *and* the "not a medical device" line,
+so the caveat travels with the number.
+
+`progress_test.mjs` covers all of it: 43 checks on history, streaks, deltas,
+badges, the sparkline and the ranking.
+
 ## Camera framing
 
 `zoomRange` reports what the hardware actually exposes and drives a slider;

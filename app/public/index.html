@@ -305,7 +305,8 @@
 
     <div class="tabs" role="tablist">
       <button type="button" class="tab on" data-tab="overview" role="tab">Overview</button>
-      <button type="button" class="tab" data-tab="plan" role="tab">Your plan</button>
+      <button type="button" class="tab" data-tab="plan" role="tab">Plan</button>
+      <button type="button" class="tab" data-tab="progress" role="tab">Progress</button>
       <button type="button" class="tab" data-tab="details" role="tab">Details</button>
     </div>
 
@@ -317,6 +318,13 @@
           <span class="big"><span id="alm-value">--</span><small>kg</small></span>
           <span class="range" id="alm-range"></span>
         </div>
+      </div>
+
+      <div class="card rankcard">
+        <div class="card-head"><h3>Where you stand</h3><span class="pill" id="rank-band">--</span></div>
+        <div class="rankbar"><span id="rank-fill"></span></div>
+        <p class="rank-line" id="rank-line">--</p>
+        <p class="sub" id="rank-note"></p>
       </div>
 
       <div class="tiles">
@@ -394,6 +402,39 @@
       before changing how you eat or train.</p>
     </div>
 
+    <!-- progress -->
+    <div data-panel="progress" hidden>
+      <div class="card streakcard">
+        <div class="streak-main">
+          <span class="streak-num" id="streak-weeks">0</span>
+          <span class="k">week streak</span>
+        </div>
+        <div class="streak-side">
+          <div><span class="k">Scans</span><b id="streak-scans">0</b></div>
+          <div><span class="k">Last scan</span><b id="streak-last">--</b></div>
+        </div>
+      </div>
+      <p class="sub" id="streak-note"></p>
+
+      <div class="card">
+        <div class="card-head"><h3>Body fat over time</h3><span class="pill" id="trend-change"></span></div>
+        <svg class="trend" id="trend-chart" viewBox="0 0 320 130" role="img" aria-label="Body fat over time"></svg>
+        <p class="sub" id="trend-note"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Badges</h3><span class="pill" id="badge-count"></span></div>
+        <div class="badgegrid" id="badge-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Your data</h3></div>
+        <p class="sub">Every scan is stored only in this browser. Nothing is uploaded, and clearing
+        it here deletes it for good.</p>
+        <button class="btn ghost" type="button" id="clear-history">Delete my history</button>
+      </div>
+    </div>
+
     <!-- details -->
     <div data-panel="details" hidden>
       <div class="card">
@@ -421,7 +462,11 @@
       Runs entirely on your device.</p>
     </div>
 
-    <div class="dock">
+    <div class="dock results-actions">
+      <button class="btn primary" id="share" type="button">
+        Share my result
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg>
+      </button>
       <button class="btn secondary" id="again" type="button">Scan again</button>
     </div>
   </section>

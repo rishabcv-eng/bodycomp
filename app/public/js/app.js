@@ -7,6 +7,8 @@ import { loadModels, analyse, analyseMany } from "./pipeline.js";
 import { ScanController, STEPS, TOLERANCE, HOLD_MS, frameAssessment } from "./scan.js";
 import { buildPlan } from "./plan.js";
 import { showResults, renderMacros, go } from "./ui.js";
+import { saveScan, loadHistory } from "./progress.js";
+import { loadRanks, rank } from "./rank.js";
 
 const PERSON_CLASSES = [1, 2, 3, 4, 5]; // multiclass: 0 is background
 const MAX_EDGE = 900;
@@ -46,6 +48,8 @@ async function init() {
       console.warn("live outline unavailable:", e.message);   // scan still works
     }
     await loadModels("models");
+    // Ranking is a nice-to-have: a missing table must not stop the app working.
+    await loadRanks("models").catch(e => console.warn("population ranks unavailable:", e.message));
     ready = true;
     document.dispatchEvent(new Event("models-ready"));
     setStatus("Ready. Fill in your details, then start the scan.", "ok");
@@ -147,8 +151,21 @@ function renderResults(out, qcs, profile = formValues()) {
   $("p-diet").value = $("p-diet").value || "veg";
   renderPlan();
 
+  // The sample body is someone else's - it must never enter the user's history.
+  const entry = {
+    bodyFatPct: bf.estimate,
+    fatFreeMassKg: out.derived.fatFreeMassKg,
+    weightKg: profile.weightKg,
+    waistCm: out.measurements.waist,
+    almi: out.derived.almi,
+    age: profile.age,
+    sex: profile.sex,
+  };
+  const history = runningSample ? loadHistory() : saveScan(entry);
+  const standing = rank(bf.estimate, out.derived.almi, profile.age, profile.sex);
+
   $("results").hidden = false;
-  showResults(bf.estimate, profile.sex);
+  showResults(bf.estimate, profile.sex, { rank: standing, history, entry, demo: runningSample });
 }
 
 /* ----------------------------------------------------------- camera check --- */
@@ -699,7 +716,10 @@ async function runUpload() {
  * ground-truth silhouettes, so it demonstrates the full result flow and can
  * show the answer next to the true tape measurements - no camera required.
  */
+let runningSample = false;
+
 async function runSample() {
+  runningSample = true;
   $("sample").disabled = true;
   setStatus("Running the sample body...", "working");
   try {
@@ -747,6 +767,7 @@ async function runSample() {
     console.error(err);
     setStatus("Could not run the sample: " + err.message, "bad");
   } finally {
+    runningSample = false;
     $("sample").disabled = false;
   }
 }
