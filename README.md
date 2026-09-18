@@ -9,8 +9,8 @@ against real **DXA scans**. Everything runs on the device — no upload, no API.
 <p align="center"><sub>Demo recorded from the real app using its built-in sample body — a real BodyM subject with
 known tape measurements. Live camera capture isn't shown. <a href="https://rishabcv-eng.github.io/bodycomp/">Try it live →</a></sub></p>
 
-**2.82% mean absolute error against clinical DXA**, beating the standard
-tape-measure formula (3.17%) without needing a tape.
+**2.84% mean absolute error against clinical DXA** in good conditions, 2.96% in
+harder ones — at or below the best tape-measure formula (3.16%), without the tape.
 
 ```
 photo pair ──▶ segmentation ──▶ Stage 1 ──▶ circumferences ──▶ Stage 2 ──▶ body fat %, lean mass
@@ -19,7 +19,7 @@ photo pair ──▶ segmentation ──▶ Stage 1 ──▶ circumferences ─
 
 | | |
 |---|---|
-| **Body fat, end to end** | 2.82% MAE vs DXA |
+| **Body fat, end to end** | 2.84% MAE vs DXA |
 | **Waist from silhouette** | 1.97 cm MAE |
 | **Interval coverage** | 80.5% (claimed 80%) |
 | **Model size / latency** | 1.4 MB, ~16 ms in-browser |
@@ -92,6 +92,7 @@ is how wrong numbers ship:
 | `scan_steps_test.mjs` | stepped capture state machine | 18 checks pass |
 | `overlay_test.mjs` | contour, mesh and chord geometry | 26 checks pass |
 | `plan_test.mjs` | plan maths and safety floors | 30 checks pass |
+| `progress_test.mjs` | history, crew board, goals, ranking | 61 checks pass |
 
 ### A bug worth keeping
 
@@ -105,6 +106,39 @@ the body ends against where the mask actually ends. If the silhouette stops well
 above the ankles, it has lost the legs. Both implementations now carry the check
 and both reject the photo.
 
+
+## Closing the generalisation gap with augmentation
+
+The honest weakness of the first build: Stage 1 beat the height-and-weight baseline
+by 41% on testA but only **3% on testB** — different subjects, harder conditions.
+The model leaned on clean capture.
+
+The fix came from an earlier measurement. `reports/mask_robustness.csv` had already
+established *which* mask defects cost accuracy at inference; `src/augmented_stage1.py`
+trains on those same defects — dilation, erosion, boundary noise, a mis-thresholded
+matte — so the model meets imperfect masks during fitting instead of first meeting
+one in the wild. Test splits stay clean, so the comparison is like for like.
+
+| testB (400 subjects) | clean-only | + augmented | |
+|---|---|---|---|
+| Waist | 3.245 | **3.033** | −0.213 cm |
+| Hip | 2.226 | **2.108** | −0.119 cm |
+| Chest | 2.760 | **2.675** | −0.085 cm |
+| Thigh | 1.702 | **1.586** | −0.117 cm |
+| Upper arm | 1.226 | **1.220** | −0.006 cm |
+
+**Every measurement improved on the harder split**, and four of five on testA too
+(waist there cost +0.05 cm — the one trade).
+
+Retrained at full size, the gap narrows further: waist on testB goes from 3.18 cm to
+**2.95 cm**, turning a 3% gain over baseline into **10.4%**. Hip improves from 11% to
+**21%**, thigh to **17%**.
+
+What it does *not* do is move the end-to-end body-fat number much (2.82% → 2.84% on
+testA): Stage 2's own error dominates once measurements are this close. Better
+measurements are still worth having — they are what the plan, the ranking and the
+trend are built on — but the honest summary is that this fixed Stage 1's weakest
+result, not the headline. The shipped app uses these models.
 
 ## A leaderboard that costs no privacy
 

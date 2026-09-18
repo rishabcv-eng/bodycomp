@@ -288,6 +288,38 @@ few percentile places.
 
 The demo body is never written to history — it's someone else's measurement.
 
+### Crew board — a real leaderboard, still no server
+
+Phones get shared: roommates, siblings, a couple training together. So history
+belongs to a **person**, not to the browser (`js/progress.js`), and the people on
+the board are the people holding the phone. `readCrew()` migrates an existing
+single-history install into one profile named "You" without losing a scan.
+
+**Ranked by progress since each person's own first scan, not by who is leanest.**
+Ranking on absolute body fat means whoever started leanest wins forever, and the
+person who most needs the motivation is bottom of a board they can never climb.
+Someone who went 31% → 27% outranks someone who went 18% → 17.6%.
+
+Each person keeps their own height, weight, age and sex, restored when you switch
+to them. That one is not cosmetic: **height is the ruler for every measurement**,
+so a leftover height would silently measure the next person against someone
+else's scale. The bug existed until a profile switch was actually tested.
+
+### Next milestone, and when you'll get there
+
+`js/goals.js` turns a rank into something to chase:
+
+- **The next rung** — Top half, Top quarter, Top tenth — with the exact body fat
+  that reaches it, taken from the user's own age-and-sex percentile curve.
+- **An ETA**, from a least-squares fit over recent scans. It refuses to answer
+  when the trend is flat, going the wrong way, or further out than six months:
+  fat loss is not linear across a year, and a date built on that would be fiction.
+  The wording stays vague on purpose — "about 6 weeks away, early November".
+- **Body-fat age**, the age whose median body fat matches yours. Reported
+  coarsely because the median curve flattens: for men it only moves from 27.3 to
+  27.8 between 30 and 59, so half a point could swing an exact age by twenty
+  years. Showing one year would imply precision that isn't there.
+
 ### Share card
 
 `js/share.js` draws a 1080×1350 card on a canvas from numbers already on screen —
