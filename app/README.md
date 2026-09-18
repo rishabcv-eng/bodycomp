@@ -327,8 +327,32 @@ no photo, nothing identifying — and hands it to the OS share sheet, falling ba
 to a download. It carries the accuracy claim *and* the "not a medical device" line,
 so the caveat travels with the number.
 
-`progress_test.mjs` covers all of it: 43 checks on history, streaks, deltas,
-badges, the sparkline and the ranking.
+`progress_test.mjs` covers all of it: 61 checks on history, streaks, deltas,
+badges, the sparkline, the crew board, goals and the ranking.
+
+## What loads, and when
+
+The app needs about 25 MB of MediaPipe to segment a photo, and it used to fetch
+all of it — plus four WebAssembly runtimes — before the first button worked. The
+15.6 MB multiclass segmenter went first, though nothing uses it until a scan has
+finished.
+
+`js/once.js` memoises three load groups, each awaited only by the steps that
+need it:
+
+| Group | What | Awaited by |
+|---|---|---|
+| `predict` | the 0.97 MB of `.bin` models and the percentile table | boot — enables the demo |
+| `preview` | video pose + the small outline segmenter | `startCamera` |
+| `measure` | multiclass segmenter + image pose | `processScan`, `runUpload` |
+
+`preview` and `measure` start downloading when the user moves to the capture
+screen, so they are warm by the time a scan ends. Each group leaves a
+`performance.mark`, so the boot cost stays measurable rather than remembered.
+
+`once` deliberately does **not** cache a rejection: a warm-up during a network
+blip must not brick the camera for the rest of the session. `boot_test.mjs`
+pins the sharing and the retry, 10 checks.
 
 ## Camera framing
 

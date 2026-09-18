@@ -93,6 +93,7 @@ is how wrong numbers ship:
 | `overlay_test.mjs` | contour, mesh and chord geometry | 26 checks pass |
 | `plan_test.mjs` | plan maths and safety floors | 30 checks pass |
 | `progress_test.mjs` | history, crew board, goals, ranking | 61 checks pass |
+| `boot_test.mjs` | lazy model loading, retry after failure | 10 checks pass |
 
 ### A bug worth keeping
 
@@ -139,6 +140,33 @@ testA): Stage 2's own error dominates once measurements are this close. Better
 measurements are still worth having — they are what the plan, the ranking and the
 trend are built on — but the honest summary is that this fixed Stage 1's weakest
 result, not the headline. The shipped app uses these models.
+
+## Loading in the order the user arrives
+
+Measuring the boot rather than assuming it: the app fetched **24 MB and stood
+four WebAssembly runtimes up before anything on screen worked** — and the
+largest single file, a 15.6 MB segmenter, downloaded *first*, despite not being
+needed until a scan is over a minute or more later.
+
+The assets now load in three groups, each fetched on first use:
+
+| Group | Size | First needed |
+|---|---|---|
+| `predict` | **0.97 MB** gzipped | immediately — the .bin models answer on their own |
+| `preview` | ~9 MB | opening the camera |
+| `measure` | ~15 MB | after the last position is captured |
+
+Only the first blocks the app, and it lands in ~120 ms. The other two start
+downloading when the user moves to the capture screen, which buys them the time
+it takes to read the instructions and stand up — and someone who only wants the
+demo result now **never downloads the other 24 MB at all: 1.75 MB and zero
+MediaPipe requests, same 34.1% answer.**
+
+The subtle part is not the laziness but the memoisation. The cached promise must
+be shared — four callers must not each start the same 15 MB download — while a
+cached *rejection* would be a bug: a warm-up that happened to run during a
+network blip would hand every later caller the same failure forever and leave
+the camera broken until a reload. `boot_test.mjs` asserts both halves.
 
 ## A leaderboard that costs no privacy
 

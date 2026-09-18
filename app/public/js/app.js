@@ -9,6 +9,7 @@ import { buildPlan } from "./plan.js";
 import { showResults, renderMacros, go } from "./ui.js";
 import { saveScan, loadHistory } from "./progress.js";
 import { loadRanks, rank } from "./rank.js";
+import { once } from "./once.js";
 
 const PERSON_CLASSES = [1, 2, 3, 4, 5]; // multiclass: 0 is background
 const MAX_EDGE = 900;
@@ -23,33 +24,62 @@ function setStatus(text, kind = "") {
   $("status").className = "status" + (kind ? " " + kind : "");
 }
 
-async function init() {
-  try {
-    setStatus("Loading models (about 25 MB, cached after the first run)...", "working");
-    const fileset = await FilesetResolver.forVisionTasks("vendor/wasm");
-    segmenter = await ImageSegmenter.createFromOptions(fileset, {
+/* ----------------------------------------------------------- model load --- */
+
+/* The assets are loaded in the order the user can first reach them, not in the
+ * order the code happens to need them. Loading everything up front meant the
+ * 15 MB measuring segmenter downloaded first and blocked the whole app - and it
+ * is not needed until a scan is finished, which is a minute or more after the
+ * page opens. Three groups, each fetched on first use and remembered:
+ *
+ *   predict  0.9 MB  the .bin models - the only thing the sample body needs
+ *   preview  5 MB    live outline + video pose, needed to open the camera
+ *   measure  15 MB   multiclass segmenter + image pose, needed only at the end
+ */
+
+const visionWasm = once("wasm", () => FilesetResolver.forVisionTasks("vendor/wasm"));
+
+const poseOpts = mode => ({
+  baseOptions: { modelAssetPath: "mp/pose_landmarker_lite.task" },
+  runningMode: mode, numPoses: 1, minPoseDetectionConfidence: 0.5,
+});
+
+const predictReady = once("predict", async () => {
+  await loadModels("models");
+  // Ranking is a nice-to-have: a missing table must not stop the app working.
+  await loadRanks("models").catch(e => console.warn("population ranks unavailable:", e.message));
+});
+
+const previewReady = once("preview", async () => {
+  const fileset = await visionWasm();
+  // Small, fast segmenter purely for the live outline. The 15 MB multiclass
+  // model stays reserved for the frames that actually get measured.
+  const [pose, preview] = await Promise.all([
+    PoseLandmarker.createFromOptions(fileset, poseOpts("VIDEO")),
+    ImageSegmenter.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: "mp/selfie_segmenter.tflite" },
+      runningMode: "VIDEO", outputCategoryMask: false, outputConfidenceMasks: true,
+    }).catch(e => { console.warn("live outline unavailable:", e.message); return null; }),
+  ]);
+  poseVideo = pose;                 // the scan still works without the outline
+  previewSegmenter = preview;
+});
+
+const measureReady = once("measure", async () => {
+  const fileset = await visionWasm();
+  [segmenter, poseImage] = await Promise.all([
+    ImageSegmenter.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: "mp/selfie_multiclass.tflite" },
       runningMode: "IMAGE", outputCategoryMask: false, outputConfidenceMasks: true,
-    });
-    const poseOpts = mode => ({
-      baseOptions: { modelAssetPath: "mp/pose_landmarker_lite.task" },
-      runningMode: mode, numPoses: 1, minPoseDetectionConfidence: 0.5,
-    });
-    poseImage = await PoseLandmarker.createFromOptions(fileset, poseOpts("IMAGE"));
-    poseVideo = await PoseLandmarker.createFromOptions(fileset, poseOpts("VIDEO"));
-    // Small, fast model purely for the live outline. The 16 MB multiclass model
-    // above stays reserved for the frames that actually get measured.
-    try {
-      previewSegmenter = await ImageSegmenter.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: "mp/selfie_segmenter.tflite" },
-        runningMode: "VIDEO", outputCategoryMask: false, outputConfidenceMasks: true,
-      });
-    } catch (e) {
-      console.warn("live outline unavailable:", e.message);   // scan still works
-    }
-    await loadModels("models");
-    // Ranking is a nice-to-have: a missing table must not stop the app working.
-    await loadRanks("models").catch(e => console.warn("population ranks unavailable:", e.message));
+    }),
+    PoseLandmarker.createFromOptions(fileset, poseOpts("IMAGE")),
+  ]);
+});
+
+async function init() {
+  try {
+    setStatus("Getting ready...", "working");
+    await predictReady();
     ready = true;
     document.dispatchEvent(new Event("models-ready"));
     setStatus("Ready. Fill in your details, then start the scan.", "ok");
@@ -57,7 +87,21 @@ async function init() {
   } catch (err) {
     console.error(err);
     setStatus("Could not load the models: " + err.message, "bad");
+    return;
   }
+  // The camera assets are warmed when the user heads for the capture screen,
+  // not here (see warmCamera). Someone who only wants the demo result never
+  // downloads the 20 MB of segmentation they are never going to use.
+}
+
+/** Start fetching the camera assets, nearest need first. Called when the user
+ *  moves to the capture screen, which buys the download the seconds it takes
+ *  them to read the instructions and press start. Failures are not fatal here -
+ *  whichever step actually needs the models awaits and retries. */
+function warmCamera() {
+  previewReady()
+    .then(measureReady)
+    .catch(err => console.warn("camera warm-up deferred:", err.message));
 }
 
 /* ---------------------------------------------------------------- shared --- */
@@ -517,6 +561,16 @@ async function startCamera(streamFactory) {
   $("camera-stop").hidden = false;
   setGuide("Starting camera...", "");
 
+  // Normally warmed already while the form was being filled in; this only waits
+  // on a first run so fast the user opened the camera before it finished.
+  try {
+    await previewReady();
+  } catch (err) {
+    console.error(err);
+    failToUpload("Could not load the camera models: " + err.message);
+    return;
+  }
+
   scan = new ScanController({
     video: $("video"), overlay: $("overlay"), pose: poseVideo,
     previewSegmenter, maxEdge: MAX_EDGE, onState: onScanState,
@@ -601,6 +655,7 @@ function failToUpload(message) {
 /** Segment the chosen frames, gate on quality, then combine by median. */
 async function processScan({ front, side }) {
   setStatus("Reading your outline...", "working");
+  await measureReady();     // warmed during the scan; a wait here would be rare
   await new Promise(r => setTimeout(r, 30));
 
   const n = Math.min(front.length, side.length);   // pair them off
@@ -686,6 +741,7 @@ async function runUpload() {
   $("run").disabled = true;
   setStatus("Finding your outline...", "working");
   try {
+    await measureReady();   // the upload path can be reached without a scan
     await new Promise(r => setTimeout(r, 30));
     const front = segmentCanvas(photos.front);
     drawPreview("front", photos.front, front.mask);
@@ -777,6 +833,11 @@ async function runSample() {
 
 $("mode-scan").addEventListener("click", () => setMode("scan"));
 $("mode-upload").addEventListener("click", () => setMode("upload"));
+
+// Anything that means "I am going to photograph myself" starts the download.
+// Upload needs only the measuring models, so it skips straight to those.
+$("to-capture").addEventListener("click", warmCamera);
+$("mode-upload").addEventListener("click", () => { measureReady().catch(() => {}); });
 $("camera-start").addEventListener("click", () => startCamera());
 $("camera-stop").addEventListener("click", () => { scan?.stop(); resetScanButtons(); setGuide(""); });
 $("scan-finish").addEventListener("click", () => scan?.finishEarly());
@@ -813,8 +874,13 @@ $("camcheck").addEventListener("click", () => runCameraCheck().catch(err => {
 
 // exposed so the browser test harness can drive a scan from a synthetic stream
 window.__bodycomp = {
-  startCamera, formValues, segmentCanvas, STEPS,
+  startCamera, formValues, STEPS,
+  // async here: the harness may call it before the 15 MB segmenter has landed
+  segmentCanvas: async canvas => { await measureReady(); return segmentCanvas(canvas); },
+  warmUp: { predict: predictReady, preview: previewReady, measure: measureReady },
   get scan() { return scan; },
+  // "the app can predict", which is all the sample body needs - the camera
+  // models are awaited by the steps that use them, not by this flag
   get ready() { return ready; },
 };
 
