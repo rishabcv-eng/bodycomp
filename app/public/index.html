@@ -118,6 +118,13 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><h3>Whose scan is this?</h3></div>
+      <div class="chips wrap" id="who-chips"></div>
+      <p class="sub">Everyone on this phone keeps their own history and appears on the crew board.
+      Nothing is shared between devices.</p>
+    </div>
+
+    <div class="card">
       <div class="field-label">What's your goal?</div>
       <div class="goals" data-bind="p-goal" role="group" aria-label="Goal">
         <button type="button" class="goal" data-value="cut"><b>Lose fat</b><span>Lean out, keep the muscle</span></button>
@@ -301,6 +308,7 @@
       <span class="band" id="bf-category">--</span>
       <p class="band-caption" id="bf-caption"></p>
       <p class="range" id="bf-range"></p>
+      <p class="range" id="bf-age" hidden></p>
     </div>
 
     <div class="tabs" role="tablist">
@@ -325,6 +333,13 @@
         <div class="rankbar"><span id="rank-fill"></span></div>
         <p class="rank-line" id="rank-line">--</p>
         <p class="sub" id="rank-note"></p>
+      </div>
+
+      <div class="card milestone" id="milestone-card" hidden>
+        <div class="card-head"><h3>Next milestone</h3><span class="pill" id="ms-label">--</span></div>
+        <div class="rankbar"><span id="ms-fill"></span></div>
+        <p class="rank-line" id="ms-line">--</p>
+        <p class="sub" id="ms-note"></p>
       </div>
 
       <div class="tiles">
@@ -404,6 +419,14 @@
 
     <!-- progress -->
     <div data-panel="progress" hidden>
+      <div class="card">
+        <div class="card-head"><h3>Crew board</h3><span class="pill" id="crew-count">--</span></div>
+        <ol class="crew" id="crew-list"></ol>
+        <p class="sub">Ranked by progress since each person's own first scan, not by who is leanest
+        &mdash; otherwise whoever started leanest just wins forever.</p>
+        <button class="btn ghost" id="add-person" type="button">Add someone</button>
+      </div>
+
       <div class="card streakcard">
         <div class="streak-main">
           <span class="streak-num" id="streak-weeks">0</span>

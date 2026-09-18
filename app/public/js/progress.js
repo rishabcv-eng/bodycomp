@@ -8,24 +8,122 @@
 // Every function here is pure apart from the storage accessor, which is
 // injectable so the whole module is testable in Node.
 
-export const KEY = "bodycomp.history.v1";
+export const KEY = "bodycomp.history.v1";     // v1: one bare array, still read to migrate
+export const CREW_KEY = "bodycomp.crew.v2";   // v2: several people sharing one device
 const MAX_ENTRIES = 250;
+const MAX_PROFILES = 8;
 const DAY = 86400000;
 
 const safeStore = store => store || (typeof localStorage !== "undefined" ? localStorage : null);
+const tidy = rows => (Array.isArray(rows) ? rows : [])
+  .filter(e => e && typeof e.ts === "number" && typeof e.bodyFatPct === "number")
+  .sort((a, b) => a.ts - b.ts);
+const newId = () => "p" + Math.random().toString(36).slice(2, 9);
 
-/** Scans, oldest first. Never throws: corrupt or blocked storage reads as empty. */
-export function loadHistory(store) {
+/**
+ * Everyone stored on this device.
+ *
+ * Phones get shared - roommates, siblings, a couple training together - so
+ * history belongs to a person rather than to the browser. It is also what makes
+ * a genuine leaderboard possible with no server and no accounts: the people on
+ * the board are the people holding the phone.
+ */
+export function readCrew(store) {
   const s = safeStore(store);
-  if (!s) return [];
+  if (!s) return { activeId: null, profiles: [] };
   try {
-    const raw = JSON.parse(s.getItem(KEY) || "[]");
-    if (!Array.isArray(raw)) return [];
-    return raw.filter(e => e && typeof e.ts === "number" && typeof e.bodyFatPct === "number")
-              .sort((a, b) => a.ts - b.ts);
-  } catch {
-    return [];
-  }
+    const raw = JSON.parse(s.getItem(CREW_KEY) || "null");
+    if (raw && Array.isArray(raw.profiles) && raw.profiles.length) {
+      const profiles = raw.profiles.map(p => ({
+        id: p.id || newId(),
+        name: String(p.name || "You").slice(0, 18),
+        history: tidy(p.history),
+      }));
+      return { activeId: profiles.some(p => p.id === raw.activeId) ? raw.activeId : profiles[0].id, profiles };
+    }
+  } catch { /* fall through and rebuild */ }
+
+  let legacy = [];
+  try { legacy = tidy(JSON.parse(s.getItem(KEY) || "[]")); } catch { legacy = []; }
+  const first = { id: newId(), name: "You", history: legacy };
+  return { activeId: first.id, profiles: [first] };
+}
+
+function writeCrew(crew, store) {
+  const s = safeStore(store);
+  if (!s) return crew;
+  try { s.setItem(CREW_KEY, JSON.stringify(crew)); } catch { /* full or blocked */ }
+  return crew;
+}
+
+export function profiles(store) { return readCrew(store).profiles; }
+
+export function activeProfile(store) {
+  const c = readCrew(store);
+  return c.profiles.find(p => p.id === c.activeId) || c.profiles[0] || null;
+}
+
+export function setActiveProfile(id, store) {
+  const c = readCrew(store);
+  if (c.profiles.some(p => p.id === id)) c.activeId = id;
+  return writeCrew(c, store);
+}
+
+export function addProfile(name, store) {
+  const c = readCrew(store);
+  if (c.profiles.length >= MAX_PROFILES) return c;
+  const person = {
+    id: newId(),
+    name: String(name || "").trim().slice(0, 18) || "Friend",
+    history: [],
+  };
+  c.profiles.push(person);
+  c.activeId = person.id;
+  return writeCrew(c, store);
+}
+
+/** Removing the last person is refused: the app always has someone to scan. */
+export function removeProfile(id, store) {
+  const c = readCrew(store);
+  if (c.profiles.length <= 1) return c;
+  c.profiles = c.profiles.filter(p => p.id !== id);
+  if (!c.profiles.some(p => p.id === c.activeId)) c.activeId = c.profiles[0].id;
+  return writeCrew(c, store);
+}
+
+/**
+ * The board. Ranked on **progress**, not on who is leanest: someone starting
+ * further out can still top it, which is the only version of this that
+ * motivates rather than discourages.
+ */
+export function crewBoard(store, now = Date.now()) {
+  const c = readCrew(store);
+  const rows = c.profiles.map(p => {
+    const d = deltas(p.history);
+    const s = streak(p.history, now);
+    return {
+      id: p.id,
+      name: p.name,
+      active: p.id === c.activeId,
+      scans: p.history.length,
+      weeks: s.weeks,
+      latest: p.history.length ? p.history[p.history.length - 1].bodyFatPct : null,
+      change: d ? d.sinceFirst.bodyFat : null,
+      leanGain: d ? d.sinceFirst.lean : null,
+    };
+  });
+  rows.sort((a, b) => {
+    const ca = a.change ?? Infinity, cb = b.change ?? Infinity;   // no trend yet ranks last
+    if (ca !== cb) return ca - cb;
+    if (b.weeks !== a.weeks) return b.weeks - a.weeks;
+    return b.scans - a.scans;
+  });
+  return rows.map((r, i) => ({ ...r, place: i + 1 }));
+}
+
+/** Scans for whoever is active, oldest first. Never throws. */
+export function loadHistory(store) {
+  return activeProfile(store)?.history ?? [];
 }
 
 /**
@@ -41,25 +139,30 @@ export function saveScan(entry, store, now = Date.now()) {
     bodyFatPct: +entry.bodyFatPct.toFixed(1),
     fatFreeMassKg: +entry.fatFreeMassKg.toFixed(1),
     weightKg: +entry.weightKg.toFixed(1),
+    // height is the ruler for every measurement, so it belongs to the person -
+    // without it, switching profiles leaves the previous person's height behind
+    heightCm: entry.heightCm != null ? +entry.heightCm.toFixed(1) : null,
     waistCm: entry.waistCm != null ? +entry.waistCm.toFixed(1) : null,
     almi: entry.almi != null ? +entry.almi.toFixed(2) : null,
     age: entry.age,
     sex: entry.sex,
   };
-  const history = loadHistory(store).filter(e => now - e.ts > 3600000);
-  history.push(row);
-  const trimmed = history.slice(-MAX_ENTRIES);
-  try {
-    s.setItem(KEY, JSON.stringify(trimmed));
-  } catch {
-    /* storage full or blocked: the scan still shows, it just is not remembered */
-  }
-  return trimmed;
+  const crew = readCrew(store);
+  const person = crew.profiles.find(p => p.id === crew.activeId) || crew.profiles[0];
+  if (!person) return [];
+  person.history = person.history.filter(e => now - e.ts > 3600000);
+  person.history.push(row);
+  person.history = person.history.slice(-MAX_ENTRIES);
+  writeCrew(crew, store);
+  return person.history;
 }
 
+/** Wipes the active person's scans, leaving everyone else on the device alone. */
 export function clearHistory(store) {
-  const s = safeStore(store);
-  try { s?.removeItem(KEY); } catch { /* nothing to do */ }
+  const crew = readCrew(store);
+  const person = crew.profiles.find(p => p.id === crew.activeId) || crew.profiles[0];
+  if (person) person.history = [];
+  writeCrew(crew, store);
   return [];
 }
 

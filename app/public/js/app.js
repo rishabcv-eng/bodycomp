@@ -156,6 +156,7 @@ function renderResults(out, qcs, profile = formValues()) {
     bodyFatPct: bf.estimate,
     fatFreeMassKg: out.derived.fatFreeMassKg,
     weightKg: profile.weightKg,
+    heightCm: profile.heightCm,
     waistCm: out.measurements.waist,
     almi: out.derived.almi,
     age: profile.age,

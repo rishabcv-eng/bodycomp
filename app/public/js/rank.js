@@ -76,6 +76,19 @@ export function rank(bodyFatPct, almi, age, sex) {
   };
 }
 
+/**
+ * Every band for one sex, with the mid-age of each, so callers can read the
+ * curve across ages rather than a single lookup.
+ */
+export function tablesFor(sex) {
+  if (!data) return null;
+  const prefix = sex === 1 ? "male" : "female";
+  const mids = { "18-29": 24, "30-39": 34.5, "40-49": 44.5, "50-59": 54.5 };
+  return BANDS
+    .map(([band]) => ({ band, mid: mids[band], t: data.tables[`${prefix}|${band}`] }))
+    .filter(x => x.t);
+}
+
 /** A line that reads like a person wrote it, not a statistics table. */
 export function rankLabel(r, sex) {
   if (!r) return "";

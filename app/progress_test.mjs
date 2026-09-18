@@ -4,8 +4,10 @@
 import { readFileSync } from "node:fs";
 import {
   loadHistory, saveScan, clearHistory, streak, deltas, badges, trendPoints, KEY,
+  readCrew, profiles, activeProfile, setActiveProfile, addProfile, removeProfile, crewBoard,
 } from "./public/js/progress.js";
 import { setRanks, rank, bandFor, percentileOf, rankLabel } from "./public/js/rank.js";
+import { bodyFatAge, nextMilestone, weeklyRate, etaTo, etaLabel } from "./public/js/goals.js";
 
 let failures = 0;
 const check = (name, cond, detail = "") => {
@@ -169,5 +171,115 @@ console.log("\npopulation rank");
         /^Leaner than \d+% of men aged 18-29$/.test(rankLabel(average, 1)), rankLabel(average, 1));
 }
 
+console.log("\ncrew (several people on one device)");
+{
+  // an existing single-history install must survive the upgrade
+  const store = makeStore();
+  store.setItem(KEY, JSON.stringify([{ ...scan(26), ts: Date.UTC(2026, 0, 5) }]));
+  const migrated = readCrew(store);
+  check("v1 history migrates into one profile",
+        migrated.profiles.length === 1 && migrated.profiles[0].history.length === 1,
+        JSON.stringify(migrated.profiles.map(p => [p.name, p.history.length])));
+  check("the migrated profile is the active one", migrated.activeId === migrated.profiles[0].id);
+  check("loadHistory still returns that history", loadHistory(store).length === 1);
+
+  addProfile("Riya", store);
+  check("adding someone switches to them", activeProfile(store).name === "Riya");
+  check("the new person starts empty", loadHistory(store).length === 0);
+  check("both people are stored", profiles(store).length === 2);
+
+  saveScan(scan(31), store, Date.UTC(2026, 0, 12));
+  check("a scan lands on the active person", loadHistory(store).length === 1);
+  const others = profiles(store).filter(p => p.name !== "Riya");
+  check("the other person is untouched", others[0].history.length === 1,
+        `${others[0].history.length} scans`);
+
+  clearHistory(store);
+  check("clearing only wipes the active person", loadHistory(store).length === 0 &&
+        profiles(store).find(p => p.name !== "Riya").history.length === 1);
+
+  const you = profiles(store).find(p => p.name === "You");
+  setActiveProfile(you.id, store);
+  check("switching back works", activeProfile(store).name === "You");
+  check("their scans are still there", loadHistory(store).length === 1);
+
+  const riya = profiles(store).find(p => p.name === "Riya");
+  removeProfile(riya.id, store);
+  check("someone can be removed", profiles(store).length === 1);
+  removeProfile(profiles(store)[0].id, store);
+  check("the last person cannot be removed", profiles(store).length === 1);
+}
+
+console.log("\ncrew board");
+{
+  const store = makeStore();
+  const now = Date.UTC(2026, 1, 2, 12);
+  const build = (name, from, to) => {
+    addProfile(name, store);
+    saveScan(scan(from), store, now - 8 * WEEK);
+    saveScan(scan(to), store, now);
+  };
+  build("Aditi", 31.0, 27.0);       // started heavier, lost 4 points
+  build("Sam", 18.0, 17.6);         // already lean, lost 0.4
+  build("Newbie", 24.0, 24.0);      // one scan's worth of change
+  const board = crewBoard(store, now);
+
+  check("everyone on the device is on the board", board.length === 4, `${board.length}`);
+  check("the board ranks on progress, not on who is leanest",
+        board[0].name === "Aditi" && board[0].change === -4,
+        `first: ${board[0].name} (${board[0].change})`);
+  check("a leaner person with less progress ranks below",
+        board.findIndex(r => r.name === "Sam") > 0);
+  check("places are numbered from one", board[0].place === 1 && board[3].place === 4);
+  check("someone with no trend yet ranks last",
+        board[board.length - 1].change === null || board[board.length - 1].scans < 2,
+        JSON.stringify(board[board.length - 1]));
+  check("the active person is flagged", board.some(r => r.active));
+}
+
+console.log("\ngoals");
+{
+  setRanks(JSON.parse(readFileSync("./public/models/percentiles.json", "utf8")));
+
+  // 24.4% is the median for men 18-29, so it should read as that age
+  const atMedian = bodyFatAge(24.4, 1);
+  check("body-fat age matches the median of your own age band",
+        Math.abs(atMedian.age - 24) <= 1, `${atMedian.age}`);
+  const older = bodyFatAge(27.8, 1);
+  check("more body fat reads older", older.age > atMedian.age, `${older.age}`);
+  check("very lean is floored at the youngest band", bodyFatAge(8, 1).atFloor === true);
+  check("very high is capped at the oldest band", bodyFatAge(50, 1).atCeiling === true);
+  check("women are read against women", bodyFatAge(37.1, 0).age <= 26, `${bodyFatAge(37.1, 0).age}`);
+
+  const far = nextMilestone(32, 1, "18-29");
+  check("the next rung is the nearest one above you", far.label === "Top half", far.label);
+  check("the gap is a body-fat number you can act on", far.gap > 0 && far.target > 0,
+        `${far.gap} points to ${far.target}%`);
+  const closer = nextMilestone(20, 1, "18-29");
+  check("rungs climb as you get leaner",
+        ["Top quarter", "Top tenth"].includes(closer.label), closer.label);
+  check("the top rung reports as reached", nextMilestone(5, 1, "18-29").reached === true);
+
+  const now = Date.UTC(2026, 2, 1);
+  const falling = [0, 1, 2, 3].map(i => ({ ...scan(28 - i * 0.5), ts: now - (3 - i) * WEEK }));
+  check("weekly rate is measured in points per week",
+        Math.abs(weeklyRate(falling) + 0.5) < 0.01, `${weeklyRate(falling)}`);
+  const eta = etaTo(falling, 24.5, now);
+  check("an ETA follows from the rate", eta && Math.abs(eta.weeks - 4) <= 1, `${eta?.weeks} weeks`);
+  check("the label stays vague about the date", /about \d+ weeks? away, (early|mid|late) \w+/.test(etaLabel(eta)),
+        etaLabel(eta));
+
+  const flat = [0, 1, 2].map(i => ({ ...scan(25), ts: now - (2 - i) * WEEK }));
+  check("no ETA from a flat trend", etaTo(flat, 20, now) === null);
+  const rising = [0, 1, 2].map(i => ({ ...scan(25 + i), ts: now - (2 - i) * WEEK }));
+  check("no ETA when heading the other way", etaTo(rising, 20, now) === null);
+  // 5% at half a point a week is ~43 weeks out; fat loss is not linear that far,
+  // so the honest answer is no date at all.
+  check("no ETA beyond the six-month horizon", etaTo(falling, 5, now) === null);
+  check("body-fat age is also reported coarsely", bodyFatAge(24.4, 1).coarse % 5 === 0,
+        `${bodyFatAge(24.4, 1).coarse}`);
+  check("one scan gives no rate", weeklyRate([falling[0]]) === null);
+}
+
 if (failures) { console.error(`\nFAIL: ${failures} check(s) failed`); process.exit(1); }
-console.log("\nPASS - history, streaks, badges and population ranking all behave");
+console.log("\nPASS - history, crew, goals and population ranking all behave");

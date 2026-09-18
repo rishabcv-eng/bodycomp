@@ -5,7 +5,11 @@
 // logic is untouched - this module only decides which screen is showing and
 // turns plain form controls into something that feels like an app.
 
-import { streak, deltas, badges, trendPoints, clearHistory } from "./progress.js";
+import {
+  streak, deltas, badges, trendPoints, clearHistory,
+  profiles, activeProfile, setActiveProfile, addProfile, crewBoard,
+} from "./progress.js";
+import { bodyFatAge, nextMilestone, etaTo, etaLabel } from "./goals.js";
 import { shareResult } from "./share.js";
 
 const $ = id => document.getElementById(id);
@@ -35,6 +39,7 @@ export function go(name, { push = true } = {}) {
   document.querySelectorAll(".progress i").forEach((seg, i) => seg.classList.toggle("on", i < step));
   $("stepcount").textContent = step ? `Step ${step} of 3` : "";
 
+  if (name === "profile") renderWho();     // the crew can change between visits
   if (push) history.pushState({ screen: name }, "", `#${name}`);
   window.scrollTo(0, 0);
 }
@@ -225,6 +230,67 @@ function renderTrend(history) {
     `error, so the direction across several scans means more than any single step.`;
 }
 
+/** Who on this device the next scan belongs to. */
+export function renderWho() {
+  const box = $("who-chips");
+  if (!box) return;
+  const active = activeProfile();
+  box.innerHTML = profiles().map(p =>
+    `<button type="button" class="chip${p.id === active?.id ? " on" : ""}" data-person="${p.id}">${p.name}</button>`
+  ).join("") + `<button type="button" class="chip" data-person="new">+ Add</button>`;
+}
+
+/** Switching person brings their own numbers back, not the last person's. */
+function prefillFrom(person) {
+  const last = person?.history?.[person.history.length - 1];
+  if (!last) return;
+  if (last.heightCm) $("height").value = last.heightCm;
+  if (last.weightKg) $("weight").value = last.weightKg;
+  if (last.age) $("age").value = last.age;
+  if (last.sex != null) $("sex").value = last.sex === 1 ? "male" : "female";
+  syncChips();
+}
+
+function renderCrew() {
+  const rows = crewBoard();
+  $("crew-count").textContent = rows.length === 1 ? "just you" : `${rows.length} people`;
+  $("crew-list").innerHTML = rows.map(r => {
+    const tone = r.change == null ? "none" : r.change < 0 ? "down" : r.change > 0 ? "up" : "none";
+    const value = r.change == null ? "no trend yet" : `${r.change > 0 ? "+" : ""}${r.change} pts`;
+    const detail = r.scans === 0
+      ? "no scans yet"
+      : `${r.scans} scan${r.scans === 1 ? "" : "s"}` +
+        (r.weeks ? ` · ${r.weeks}w streak` : "") +
+        (r.latest != null ? ` · now ${r.latest}%` : "");
+    return `<li class="${r.active ? "you" : ""}"><span class="place">${r.place}</span>` +
+      `<span class="who"><b>${r.name}</b><span>${detail}</span></span>` +
+      `<span class="delta ${tone}">${value}</span></li>`;
+  }).join("");
+}
+
+/** The next rung up, and when the current trend would reach it. */
+function renderMilestone(bf, sex, r, history) {
+  const card = $("milestone-card");
+  const ms = r ? nextMilestone(bf, sex, r.band) : null;
+  if (!ms) { card.hidden = true; return; }
+  card.hidden = false;
+  $("ms-label").textContent = ms.label;
+
+  if (ms.reached) {
+    $("ms-fill").style.left = "100%";
+    $("ms-line").innerHTML = "You're in the <b>top tenth</b> of your band";
+    $("ms-note").textContent = "No higher rung here - holding it is the work now.";
+    return;
+  }
+  $("ms-fill").style.left = `${Math.max(0, Math.min(100, r.leanerThan))}%`;
+  $("ms-line").innerHTML = `<b>${ms.gap}</b> points from ${ms.label}`;
+  const eta = etaTo(history, ms.target);
+  $("ms-note").textContent =
+    `${ms.label} starts at ${ms.target}% body fat for your age and sex. ` +
+    (eta ? `At your current rate that's ${etaLabel(eta)}.`
+         : "Two scans a week or so apart will turn this into a date.");
+}
+
 function renderProgress(history, r) {
   const s = streak(history);
   $("streak-weeks").textContent = s.weeks;
@@ -236,6 +302,7 @@ function renderProgress(history, r) {
     : "Scan once a week to build a streak. Weekly, not daily: bodies don't change that fast.";
 
   renderTrend(history);
+  renderCrew();
 
   const b = badges(history, r);
   $("badge-count").textContent = `${b.earned} of ${b.total}`;
@@ -249,7 +316,16 @@ export function showResults(bf, sex, ctx = {}) {
   const sexKey = sex === 1 ? "male" : "female";
   renderGauge(bf, sexKey);
   renderRank(ctx.rank, sex);
+  renderMilestone(bf, sex, ctx.rank, ctx.history || []);
   renderProgress(ctx.history || [], ctx.rank);
+
+  const age = bodyFatAge(bf, sex);
+  const ageLine = $("bf-age");
+  ageLine.hidden = !age;
+  if (age) {
+    ageLine.textContent = `Body-fat age about ${age.coarse}${age.atCeiling ? "+" : ""} ` +
+      `— the age whose median body fat matches yours`;
+  }
 
   const d = deltas(ctx.history || []);
   lastResult = {
@@ -321,6 +397,21 @@ function wire() {
     setTimeout(() => { btn.innerHTML = markup; btn.disabled = false; }, 2200);
   });
 
+  const askForName = () => {
+    const name = prompt("Who's scanning? First name is enough.");
+    if (name && name.trim()) { addProfile(name); renderWho(); renderCrew(); }
+  };
+
+  $("who-chips").addEventListener("click", e => {
+    const b = e.target.closest("[data-person]");
+    if (!b) return;
+    if (b.dataset.person === "new") { askForName(); return; }
+    setActiveProfile(b.dataset.person);
+    prefillFrom(activeProfile());
+    renderWho();
+  });
+  $("add-person").addEventListener("click", askForName);
+
   $("clear-history").addEventListener("click", () => {
     clearHistory();
     renderProgress([], null);
@@ -330,6 +421,7 @@ function wire() {
   });
 
   bindChips();
+  renderWho();
 }
 
 wire();
