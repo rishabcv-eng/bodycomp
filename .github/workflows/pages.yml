@@ -55,7 +55,9 @@ jobs:
       # still agree with the Python models before anything is published.
       - name: Run tests
         working-directory: app
-        run: node parity_test.mjs && node scan_score_test.mjs && node scan_steps_test.mjs && node overlay_test.mjs && node plan_test.mjs
+        # Every suite except parity_silhouette, which needs the 8 MB mask fixture
+        # that is deliberately not committed.
+        run: node parity_test.mjs && node scan_score_test.mjs && node scan_steps_test.mjs && node overlay_test.mjs && node plan_test.mjs && node progress_test.mjs
 
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
