@@ -350,6 +350,14 @@ need it:
 screen, so they are warm by the time a scan ends. Each group leaves a
 `performance.mark`, so the boot cost stays measurable rather than remembered.
 
+Ordering was only half of it. The eleven `.bin` files were awaited one at a
+time, so 0.97 MB cost eleven round trips; `loadModels` now issues them together
+and they start within 1 ms of each other. `modulepreload` flattens the
+three-level module graph, and `vendor/vision_bundle.mjs` became a dynamic import
+so 39 KB of MediaPipe wrapper no longer has to parse before `app.js` runs.
+Measured on the deployed site, time to a usable app went 6.3 s → **0.46 s**; on
+localhost every one of these read as ~100 ms, which is why they survived so long.
+
 `once` deliberately does **not** cache a rejection: a warm-up during a network
 blip must not brick the camera for the rest of the session. `boot_test.mjs`
 pins the sharing and the retry, 10 checks.

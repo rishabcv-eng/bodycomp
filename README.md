@@ -156,17 +156,41 @@ The assets now load in three groups, each fetched on first use:
 | `preview` | ~9 MB | opening the camera |
 | `measure` | ~15 MB | after the last position is captured |
 
-Only the first blocks the app, and it lands in ~120 ms. The other two start
-downloading when the user moves to the capture screen, which buys them the time
-it takes to read the instructions and stand up — and someone who only wants the
-demo result now **never downloads the other 24 MB at all: 1.75 MB and zero
-MediaPipe requests, same 34.1% answer.**
+Only the first blocks the app. The other two start downloading when the user
+moves to the capture screen, which buys them the time it takes to read the
+instructions and stand up — and someone who only wants the demo result **never
+downloads the segmentation models at all**, yet gets the same 34.1% answer.
+
+Reordering alone was not enough, and only deploying it showed why. Measured on
+the live site, time to a usable app:
+
+| | Before | After reordering | After parallelising |
+|---|---|---|---|
+| Bytes to first usable | 24 MB | 0.97 MB | 0.97 MB |
+| Time to first usable | ~16 s | 6.3 s | **0.46 s** |
+
+Cutting 24 MB to 0.97 MB still left 6.3 seconds, because those 30 requests were
+almost entirely **serial**: `loadModels` awaited each of the eleven `.bin` files
+in turn, one round trip each. They are independent files behind one manifest, so
+they now load together — all eleven start within 1 ms of each other. Three more
+sequential gates went with it: an independent ranking table awaited behind the
+models, a three-level module graph the browser discovered one level per round
+trip (fixed with `modulepreload`), and a 39 KB MediaPipe wrapper that had to
+parse before `app.js` ran at all, now a dynamic import.
+
+Localhost reported 100 ms throughout and hid every one of these. The lesson
+worth keeping is that a local dev server is a bad proxy for a phone: it has no
+round-trip latency, which is exactly what the bug was made of.
 
 The subtle part is not the laziness but the memoisation. The cached promise must
 be shared — four callers must not each start the same 15 MB download — while a
 cached *rejection* would be a bug: a warm-up that happened to run during a
 network blip would hand every later caller the same failure forever and leave
 the camera broken until a reload. `boot_test.mjs` asserts both halves.
+
+One honest footnote: Chrome statically resolves the dynamic `import()` and
+speculatively fetches that 39 KB wrapper anyway, even on the demo path. The
+segmentation models — the 24 MB that mattered — are genuinely never requested.
 
 ## A leaderboard that costs no privacy
 
