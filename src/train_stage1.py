@@ -32,6 +32,21 @@ SIL = [c for c in df.columns if c.startswith(("front_w", "side_w", "circ"))] + \
 BASIC = ["sex", "height_cm", "weight_kg", "bmi"]
 
 tr = df[df.split == "train"]
+
+# The silhouette models also train on degraded masks (reports/augmentation.json:
+# every measurement improves on testB). The height-and-weight baseline does not,
+# because augmentation adds no information to it - the same row five times would
+# only reweight it - and the comparison has to stay fair.
+_aug_path = ROOT / "data" / "processed" / "bodym_augmented_features.csv"
+if _aug_path.exists():
+    _cols = ["photo_id", "sex", "height_cm", "weight_kg", "bmi"] + [c for c in TARGETS if c in tr.columns]
+    _aug = pd.read_csv(_aug_path).merge(tr[_cols], on="photo_id", how="inner")
+    tr_aug = pd.concat([tr, _aug], ignore_index=True)
+    print(f"silhouette models train on {len(tr_aug)} rows ({len(_aug)} augmented)")
+else:
+    tr_aug = tr
+    print("no augmented features found - run src/augmented_stage1.py first")
+
 tests = {"testA": df[df.split == "testA"], "testB": df[df.split == "testB"]}
 print(f"train {len(tr)} photos / {tr.subject_id.nunique()} subjects   "
       f"testA {len(tests['testA'])}   testB {len(tests['testB'])}\n")
@@ -41,8 +56,9 @@ print(f"{'measurement':<18}{'split':<8}{'h+w+sex':>10}{'+silhouette':>13}{'gain'
 print("-" * 73)
 for t in TARGETS:
     d_tr = tr[tr[t].notna()]
+    d_aug = tr_aug[tr_aug[t].notna()]
     basic_m = lgb.LGBMRegressor(**LGB).fit(d_tr[BASIC], d_tr[t])
-    full_m = lgb.LGBMRegressor(**LGB).fit(d_tr[BASIC + SIL], d_tr[t])
+    full_m = lgb.LGBMRegressor(**LGB).fit(d_aug[BASIC + SIL], d_aug[t])
     for name, te in tests.items():
         te = te[te[t].notna()]
         b = mean_absolute_error(te[t], basic_m.predict(te[BASIC]))
@@ -61,8 +77,8 @@ for t in TARGETS:
 import pickle
 keep = {}
 for t in ["waist", "bicep", "hip", "chest", "thigh"]:
-    d_tr = tr[tr[t].notna()]
-    keep[t] = lgb.LGBMRegressor(**LGB).fit(d_tr[BASIC + SIL], d_tr[t])
+    d_aug = tr_aug[tr_aug[t].notna()]
+    keep[t] = lgb.LGBMRegressor(**LGB).fit(d_aug[BASIC + SIL], d_aug[t])
 with open(ROOT / "models" / "stage1_measurements.pkl", "wb") as fh:
     pickle.dump({"features": BASIC + SIL, "models": keep}, fh)
 print("saved models/stage1_measurements.pkl and reports/stage1_metrics.json")

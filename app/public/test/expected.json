@@ -5,16 +5,16 @@
  "age": 30,
  "sex": 0,
  "measurements": {
-  "waist": 80.5,
+  "waist": 80.3,
   "bicep": 28.8,
-  "hip": 97.6,
-  "chest": 93.9,
-  "thigh": 52.0
+  "hip": 97.9,
+  "chest": 93.7,
+  "thigh": 52.4
  },
  "composition": {
   "bodyfat_pct": {
    "estimate": 34.1,
-   "low": 28.6,
+   "low": 28.3,
    "high": 39.7
   },
   "alm_kg": {

@@ -96,6 +96,21 @@ S1_FEATURES = ["sex", "height_cm", "weight_kg", "bmi"] + SIL
 manifest["s1_features"] = S1_FEATURES
 btr = b[b.split == "train"]
 
+# Train on degraded silhouettes as well as clean ones. reports/augmentation.json
+# shows this improves every measurement on testB - the harder split - because the
+# model meets imperfect masks during fitting instead of first meeting one in the
+# wild. Test splits stay clean, so the comparison is unchanged.
+TARGETS = ["waist", "bicep", "hip", "chest", "thigh"]
+aug_path = ROOT / "data" / "processed" / "bodym_augmented_features.csv"
+if aug_path.exists():
+    aug = pd.read_csv(aug_path).merge(
+        btr[["photo_id", "sex", "height_cm", "weight_kg", "bmi"] + TARGETS],
+        on="photo_id", how="inner")
+    btr = pd.concat([btr, aug], ignore_index=True)
+    print(f"  stage 1 rows: {len(btr)} ({len(aug)} augmented)")
+else:
+    print(f"  stage 1 rows: {len(btr)} (clean only - run src/augmented_stage1.py to augment)")
+
 py_models = {"stage1": {}, "stage2": {}}
 for t in ["waist", "bicep", "hip", "chest", "thigh"]:
     m = lgb.LGBMRegressor(objective="l1", **S1_PARAMS).fit(btr[S1_FEATURES], btr[t])
@@ -135,3 +150,53 @@ for target in ["bodyfat_pct", "alm_kg"]:
 (OUT / "manifest.json").write_text(json.dumps(manifest, indent=1))
 pickle.dump(py_models, open(ROOT / "models" / "web_models_python.pkl", "wb"))
 print(f"\ntotal weights: {total/1024:.0f} KB across {len(list(OUT.glob('*.bin')))} files")
+
+# ---------- fixtures ----------
+# Regenerated here, from these exact models. They were written by hand once and
+# would silently go stale the moment the weights changed - which is the one thing
+# a parity test must never do.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from extract_silhouette import process                                    # noqa: E402
+
+APP = ROOT / "app"
+rng = np.random.default_rng(7)
+
+s1_rows = b[b.split == "testA"].sample(40, random_state=3)
+X1 = s1_rows[S1_FEATURES].astype(float)
+s2_src = df[df.bodyfat_pct.notna()].sample(40, random_state=3)
+X2 = s2_src[S2_FEATURES].astype(float)
+cases = {
+    "stage1": {"features": S1_FEATURES, "rows": X1.values.tolist(),
+               "expected": {t: py_models["stage1"][t].predict(X1).tolist() for t in manifest["stage1"]}},
+    "stage2": {"features": S2_FEATURES, "rows": X2.values.tolist(),
+               "expected": {f"{tgt}_{k}": py_models["stage2"][f"{tgt}_{k}"].predict(X2).tolist()
+                            for tgt in manifest["stage2"] for k in ("point", "lo", "hi")}},
+}
+(APP / "parity_cases.json").write_text(json.dumps(cases))
+
+# the in-browser self-test: same subject as before, recomputed for these weights
+fixture = json.loads((APP / "public" / "test" / "expected.json").read_text())
+row = b[(b.photo_id == fixture["photo_id"])].iloc[0]
+d = process(("testA", fixture["photo_id"], row.height_cm))
+d.update(sex=int(row.sex), height_cm=float(row.height_cm), weight_kg=float(row.weight_kg),
+         bmi=float(row.bmi))
+Xf = pd.DataFrame([d])[S1_FEATURES]
+meas_pred = {t: round(float(py_models["stage1"][t].predict(Xf)[0]), 1) for t in manifest["stage1"]}
+
+h, w = float(row.height_cm), float(row.weight_kg)
+waist, arm = meas_pred["waist"], meas_pred["bicep"]
+s2_row = {"sex": int(row.sex), "age": fixture["age"], "height_cm": h, "weight_kg": w,
+          "bmi": w / (h / 100) ** 2, "waist_cm": waist, "arm_circ_cm": arm,
+          "waist_to_height": waist / h, "waist_to_weight": waist / w,
+          "arm_to_height": arm / h, "waist_to_arm": waist / arm,
+          "ponderal_index": w / (h / 100) ** 3}
+Xs = pd.DataFrame([s2_row])[S2_FEATURES]
+fixture["measurements"] = meas_pred
+fixture["composition"] = {
+    tgt: {"estimate": round(float(py_models["stage2"][f"{tgt}_point"].predict(Xs)[0]), 1),
+          "low": round(float(py_models["stage2"][f"{tgt}_lo"].predict(Xs)[0]) - info["q"], 1),
+          "high": round(float(py_models["stage2"][f"{tgt}_hi"].predict(Xs)[0]) + info["q"], 1)}
+    for tgt, info in manifest["stage2"].items()}
+(APP / "public" / "test" / "expected.json").write_text(json.dumps(fixture, indent=1))
+print("fixtures: app/parity_cases.json and app/public/test/expected.json regenerated")

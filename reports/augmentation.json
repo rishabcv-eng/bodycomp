@@ -1,0 +1,52 @@
+{
+ "waist|testA": {
+  "clean": 2.016,
+  "augmented": 2.067,
+  "delta": 0.051
+ },
+ "waist|testB": {
+  "clean": 3.245,
+  "augmented": 3.033,
+  "delta": -0.213
+ },
+ "hip|testA": {
+  "clean": 1.571,
+  "augmented": 1.48,
+  "delta": -0.091
+ },
+ "hip|testB": {
+  "clean": 2.226,
+  "augmented": 2.108,
+  "delta": -0.119
+ },
+ "chest|testA": {
+  "clean": 2.462,
+  "augmented": 2.388,
+  "delta": -0.074
+ },
+ "chest|testB": {
+  "clean": 2.76,
+  "augmented": 2.675,
+  "delta": -0.085
+ },
+ "bicep|testA": {
+  "clean": 1.199,
+  "augmented": 1.159,
+  "delta": -0.04
+ },
+ "bicep|testB": {
+  "clean": 1.226,
+  "augmented": 1.22,
+  "delta": -0.006
+ },
+ "thigh|testA": {
+  "clean": 1.392,
+  "augmented": 1.317,
+  "delta": -0.075
+ },
+ "thigh|testB": {
+  "clean": 1.702,
+  "augmented": 1.586,
+  "delta": -0.117
+ }
+}
