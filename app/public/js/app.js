@@ -1,7 +1,6 @@
 // Wires the camera, MediaPipe and the two model stages together.
 // Everything runs in this tab. No video, photo or measurement leaves the device.
 
-import { FilesetResolver, ImageSegmenter, PoseLandmarker } from "../vendor/vision_bundle.mjs";
 import { buildMask, qualityCheck } from "./mask.js";
 import { loadModels, analyse, analyseMany } from "./pipeline.js";
 import { ScanController, STEPS, TOLERANCE, HOLD_MS, frameAssessment } from "./scan.js";
@@ -37,7 +36,15 @@ function setStatus(text, kind = "") {
  *   measure  15 MB   multiclass segmenter + image pose, needed only at the end
  */
 
-const visionWasm = once("wasm", () => FilesetResolver.forVisionTasks("vendor/wasm"));
+// Imported dynamically: a static import would block app.js from running at all
+// until 39 KB of MediaPipe wrapper had parsed, for a camera the user may never
+// open. Nothing outside the camera groups below touches it.
+const visionLib = once("vision-lib", () => import("../vendor/vision_bundle.mjs"));
+
+const visionWasm = once("wasm", async () => {
+  const { FilesetResolver } = await visionLib();
+  return FilesetResolver.forVisionTasks("vendor/wasm");
+});
 
 const poseOpts = mode => ({
   baseOptions: { modelAssetPath: "mp/pose_landmarker_lite.task" },
@@ -45,13 +52,17 @@ const poseOpts = mode => ({
 });
 
 const predictReady = once("predict", async () => {
-  await loadModels("models");
-  // Ranking is a nice-to-have: a missing table must not stop the app working.
-  await loadRanks("models").catch(e => console.warn("population ranks unavailable:", e.message));
+  await Promise.all([
+    loadModels("models"),
+    // Ranking is a nice-to-have: a missing table must not stop the app working.
+    // It is also independent of the models, so it has no business queueing
+    // behind them - awaiting in sequence just bought another round trip.
+    loadRanks("models").catch(e => console.warn("population ranks unavailable:", e.message)),
+  ]);
 });
 
 const previewReady = once("preview", async () => {
-  const fileset = await visionWasm();
+  const [{ PoseLandmarker, ImageSegmenter }, fileset] = await Promise.all([visionLib(), visionWasm()]);
   // Small, fast segmenter purely for the live outline. The 15 MB multiclass
   // model stays reserved for the frames that actually get measured.
   const [pose, preview] = await Promise.all([
@@ -66,7 +77,7 @@ const previewReady = once("preview", async () => {
 });
 
 const measureReady = once("measure", async () => {
-  const fileset = await visionWasm();
+  const [{ PoseLandmarker, ImageSegmenter }, fileset] = await Promise.all([visionLib(), visionWasm()]);
   [segmenter, poseImage] = await Promise.all([
     ImageSegmenter.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: "mp/selfie_multiclass.tflite" },

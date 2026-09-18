@@ -11,16 +11,23 @@ export async function loadModels(base = "models") {
   const manifest = await (await fetch(`${base}/manifest.json`)).json();
   const get = async file => loadModel(await (await fetch(`${base}/${file}`)).arrayBuffer());
 
-  const stage1 = {};
-  for (const [name, file] of Object.entries(manifest.stage1)) stage1[name] = await get(file);
+  // All eleven at once. Awaiting them one by one cost a round trip each - 4.4 s
+  // of latency on a real connection for 0.9 MB that fits in a single wave.
+  const files = [
+    ...Object.entries(manifest.stage1).map(([name, file]) => ({ name, file })),
+    ...Object.entries(manifest.stage2).flatMap(([target, info]) =>
+      ["point", "lo", "hi"].map(part => ({ target, part, file: info[part] }))),
+  ];
+  const loaded = await Promise.all(files.map(f => get(f.file)));
 
-  const stage2 = {};
-  for (const [target, info] of Object.entries(manifest.stage2)) {
-    stage2[target] = {
-      point: await get(info.point), lo: await get(info.lo), hi: await get(info.hi),
-      q: info.q, mae: info.mae, coverage80: info.coverage80,
-    };
-  }
+  const stage1 = {}, stage2 = {};
+  files.forEach((f, i) => {
+    if (f.name !== undefined) { stage1[f.name] = loaded[i]; return; }
+    const info = manifest.stage2[f.target];
+    stage2[f.target] ??= { q: info.q, mae: info.mae, coverage80: info.coverage80 };
+    stage2[f.target][f.part] = loaded[i];
+  });
+
   bundle = { manifest, stage1, stage2 };
   return bundle;
 }

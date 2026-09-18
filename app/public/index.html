@@ -10,6 +10,26 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
+
+<!-- The module graph is three levels deep, so the browser discovers it one
+     level per round trip: app.js, then its nine imports, then theirs. Naming
+     the leaves here starts them all in the first wave. The manifest is the
+     gate on all eleven model files, so it is worth a head start of its own. -->
+<link rel="modulepreload" href="js/app.js">
+<link rel="modulepreload" href="js/pipeline.js">
+<link rel="modulepreload" href="js/trees.js">
+<link rel="modulepreload" href="js/silhouette.js">
+<link rel="modulepreload" href="js/mask.js">
+<link rel="modulepreload" href="js/scan.js">
+<link rel="modulepreload" href="js/overlay.js">
+<link rel="modulepreload" href="js/plan.js">
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/progress.js">
+<link rel="modulepreload" href="js/rank.js">
+<link rel="modulepreload" href="js/goals.js">
+<link rel="modulepreload" href="js/share.js">
+<link rel="modulepreload" href="js/once.js">
+<link rel="preload" as="fetch" href="models/manifest.json" crossorigin>
 </head>
 <body data-screen="welcome">
 <div class="app">
