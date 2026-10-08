@@ -11,9 +11,12 @@ import {
 } from "./progress.js";
 import { bodyFatAge, nextMilestone, etaTo, etaLabel } from "./goals.js";
 import { shareResult } from "./share.js";
+import { renderTrain, wireTrain } from "./train.js";
+import { summary as trainSummary } from "./workouts.js";
 
 const $ = id => document.getElementById(id);
-const SCREENS = ["welcome", "profile", "capture", "results"];
+const SCREENS = ["welcome", "profile", "capture", "results", "train"];
+// The training log is not a step in the scan, so it carries no step number.
 const STEP_OF = { profile: 1, capture: 2, results: 3 };
 
 let current = "welcome";
@@ -40,6 +43,7 @@ export function go(name, { push = true } = {}) {
   $("stepcount").textContent = step ? `Step ${step} of 3` : "";
 
   if (name === "profile") renderWho();     // the crew can change between visits
+  if (name === "train") renderTrain();     // sets may have been logged elsewhere
   if (push) history.pushState({ screen: name }, "", `#${name}`);
   window.scrollTo(0, 0);
 }
@@ -349,6 +353,30 @@ export function showResults(bf, sex, ctx = {}) {
 
 /* ----------------------------------------------------------------- wire --- */
 
+/**
+ * The training summary on the Progress tab.
+ *
+ * This is the one place the two halves of the app meet: the scan says what the
+ * body is, the log says what was done to it. Deliberately a summary and a way
+ * in, not a second copy of the training screen.
+ */
+export function renderTrainCard() {
+  const p = activeProfile();
+  if (!p || !$("tc-sets")) return;
+  const s = trainSummary(p.id, null);
+
+  $("tc-sets").textContent = s.weekSets;
+  $("tc-vol").textContent = s.weekVolumeKg >= 1000
+    ? (s.weekVolumeKg / 1000).toFixed(1) + "t" : s.weekVolumeKg;
+  $("tc-ex").textContent = s.exercises;
+  $("tc-streak").textContent = s.streak ? `${s.streak} day streak` : "no streak yet";
+  $("tc-note").textContent = s.totalSets === 0
+    ? "Nothing logged yet. Tracking what you lift is what turns a body-fat number into a trend you caused."
+    : s.weekSets === 0
+      ? "Nothing this week yet. Your log is still here when you get back."
+      : `${s.weekDays} ${s.weekDays === 1 ? "day" : "days"} trained this week, ${s.totalSets} sets logged all time.`;
+}
+
 function wire() {
   history.replaceState({ screen: "welcome" }, "", location.pathname + location.search);
   addEventListener("popstate", e => go(e.state?.screen || "welcome", { push: false }));
@@ -422,6 +450,10 @@ function wire() {
 
   bindChips();
   renderWho();
+  // A set logged against the active profile changes the training card on the
+  // results screen too, so the log tells us rather than us polling for it.
+  wireTrain({ onChange: renderTrainCard });
+  renderTrainCard();
 }
 
 wire();

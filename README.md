@@ -94,6 +94,7 @@ is how wrong numbers ship:
 | `plan_test.mjs` | plan maths and safety floors | 30 checks pass |
 | `progress_test.mjs` | history, crew board, goals, ranking | 61 checks pass |
 | `boot_test.mjs` | lazy model loading, retry after failure | 10 checks pass |
+| `workouts_test.mjs` | PR engine, sessions, training streak | 65 checks pass |
 
 ### A bug worth keeping
 
@@ -140,6 +141,61 @@ testA): Stage 2's own error dominates once measurements are this close. Better
 measurements are still worth having — they are what the plan, the ranking and the
 trend are built on — but the honest summary is that this fixed Stage 1's weakest
 result, not the headline. The shipped app uses these models.
+
+## A training log, and knowing when to shout
+
+274 exercises, logged as sets, with records tracked per exercise. The part worth
+reading is what counts as a record, because that decides when the app is allowed
+to interrupt someone.
+
+Four records are tracked for a lifted set — heaviest weight, estimated 1RM, most
+reps at a given weight, and biggest single set — but **only two can raise a
+popup**. The reason is the back-off set. After a top set of 100 kg × 5, a light
+60 kg × 15 finisher is genuinely the most reps ever done at 60 kg and genuinely
+the biggest single-set volume. Both true, both worthless as news, and a tracker
+that celebrates them teaches you to ignore it within a week. Heaviest weight and
+estimated 1RM are exactly the records a lighter set *cannot* fake, so those two
+get the screen and the rest are shown quietly on the set itself.
+
+Three more decisions that fell out of testing:
+
+- **Nothing is a record the first time.** Otherwise every first set of every
+  exercise is a personal best — technically true, completely useless.
+- **Reps are only compared at the same weight.** 21 reps at 20 kg is not better
+  than 20 reps at 40 kg, and no arithmetic on those two numbers says otherwise.
+- **Epley is capped at 12 reps**, because above that it measures conditioning
+  and reports it as strength. It also returns the bar weight exactly for a
+  logged single, where the textbook formula claims 3.3% more than was lifted.
+
+Exercises carry one of three metrics — load, reps or time — and the metric
+decides both the input fields and the records. It is what stops the app
+congratulating someone for holding a *heavier* plank.
+
+## Installable, and it works with no signal
+
+`manifest.webmanifest` plus `sw.js` make it a home-screen app: on iOS, Share →
+Add to Home Screen gives a standalone app with its own icon. There is no native
+iOS build, and from a Windows machine there cannot be — an App Store binary
+needs macOS, Xcode and a paid Apple developer account. A PWA is the whole of
+what is buildable here, and for this app it costs nothing: camera, models and
+storage all work the same.
+
+The caching mirrors the loading split, for the same reason — precaching
+everything would mean the 25 MB download the lazy loading just removed:
+
+| Cache | Contents | When |
+|---|---|---|
+| shell | ~1 MB: markup, scripts, the 11 `.bin` models | precached on install |
+| heavy | ~24 MB: MediaPipe wasm and tflite | kept only once actually used |
+
+Verified by stopping the server and reloading: the app booted from cache, the
+models loaded, and the training log was intact.
+
+Cache-first was the obvious strategy and the wrong one. Scripts keep their
+filenames across deploys, so it serves last week's code until someone remembers
+to bump a version constant by hand — which bit during testing, when a stale
+`exercises.js` silently undid a fix I had just made. Everything but the
+immutable MediaPipe assets is stale-while-revalidate instead.
 
 ## Loading in the order the user arrives
 

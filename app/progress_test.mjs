@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import {
   loadHistory, saveScan, clearHistory, streak, deltas, badges, trendPoints, KEY,
   readCrew, profiles, activeProfile, setActiveProfile, addProfile, removeProfile, crewBoard,
+  CREW_KEY,
 } from "./public/js/progress.js";
 import { setRanks, rank, bandFor, percentileOf, rankLabel } from "./public/js/rank.js";
 import { bodyFatAge, nextMilestone, weeklyRate, etaTo, etaLabel } from "./public/js/goals.js";
@@ -279,6 +280,24 @@ console.log("\ngoals");
   check("body-fat age is also reported coarsely", bodyFatAge(24.4, 1).coarse % 5 === 0,
         `${bodyFatAge(24.4, 1).coarse}`);
   check("one scan gives no rate", weeklyRate([falling[0]]) === null);
+}
+
+/* ---------------------------------------------------- a stable identity --- */
+// Found by building the training log on top of this: anything keyed by profile
+// id needs that id to still be there on the next call. readCrew invents one on
+// a new device, and for a long time only saveScan happened to write it back -
+// so a feature that read the id without ever saving a scan silently filed
+// every entry under a different person.
+console.log("\nThe invented first profile");
+{
+  const store = makeStore();
+  const a = activeProfile(store);
+  const b = activeProfile(store);
+  check("a fresh device gets a profile", !!a && !!a.id);
+  check("and the very same one next call", a.id === b.id, `${a?.id} vs ${b?.id}`);
+  check("because reading it wrote it down", store.getItem(CREW_KEY) !== null);
+  check("listing profiles agrees", profiles(store).length === 1);
+  check("and agrees on the id", profiles(store)[0].id === a.id);
 }
 
 if (failures) { console.error(`\nFAIL: ${failures} check(s) failed`); process.exit(1); }

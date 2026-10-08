@@ -896,3 +896,13 @@ window.__bodycomp = {
 };
 
 init();
+
+// Offline support and home-screen install. Registered after init so the first
+// load spends its bandwidth on the app rather than on filling a cache, and
+// never on a file: URL, where it would only throw.
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js")
+      .catch(err => console.warn("offline support unavailable:", err.message));
+  });
+}

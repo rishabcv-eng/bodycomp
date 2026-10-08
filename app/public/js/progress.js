@@ -56,10 +56,26 @@ function writeCrew(crew, store) {
   return crew;
 }
 
-export function profiles(store) { return readCrew(store).profiles; }
+/**
+ * Read the crew, persisting it if it had to be invented.
+ *
+ * readCrew mints an id when nothing is stored yet, and that id must survive the
+ * next call: anything keyed by profile id - the training log, for one - would
+ * otherwise write every entry under a different person and find no history on
+ * the way back. Scan history hid this for a long time because saveScan always
+ * wrote the crew back as a side effect of saving a scan.
+ */
+export function ensureCrew(store) {
+  const s = safeStore(store);
+  const c = readCrew(store);
+  if (s && s.getItem(CREW_KEY) === null) writeCrew(c, store);
+  return c;
+}
+
+export function profiles(store) { return ensureCrew(store).profiles; }
 
 export function activeProfile(store) {
-  const c = readCrew(store);
+  const c = ensureCrew(store);
   return c.profiles.find(p => p.id === c.activeId) || c.profiles[0] || null;
 }
 

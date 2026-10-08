@@ -564,3 +564,187 @@ td:first-child { font-weight:600; color:var(--text); }
 
 .milestone { background:radial-gradient(360px 180px at 100% 0%, rgba(204,255,63,.11), transparent 70%), var(--card); }
 #ms-fill { background:rgba(7,8,11,.72); }
+
+/* The status line talks about the scan and the models behind it; on the
+   training screen it is answering a question nobody asked. */
+body[data-screen="train"] #status { display:none; }
+
+/* ========================================================== training log ==
+   Built for one hand, mid-set, with the other hand on a dumbbell: the primary
+   action is a full-width target, the number fields have taps either side, and
+   nothing important sits where a thumb cannot reach. */
+
+.trainbar { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+.statlet {
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r-md);
+  padding:12px 10px; text-align:center;
+}
+.statlet b { display:block; font-family:var(--display); font-size:26px; line-height:1.05; color:var(--volt); }
+.statlet span { font-size:11px; color:var(--muted); letter-spacing:.02em; }
+
+.btn.big { min-height:62px; font-size:17px; margin-bottom:16px; }
+
+.card.empty { text-align:center; }
+.card.empty h3 { margin-bottom:6px; }
+
+.session { margin-bottom:12px; }
+.sx { border-top:1px solid var(--line); padding:12px 0 2px; }
+.sx:first-of-type { border-top:0; padding-top:4px; }
+.sx-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+.sx-head b { font-size:15px; }
+.sx-head span { font-size:12px; color:var(--muted); flex:none; }
+.sx-sets { list-style:none; margin:6px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+.sx-sets li {
+  display:inline-flex; align-items:center; gap:4px;
+  background:var(--card-2); border:1px solid var(--line-2); border-radius:10px;
+  padding:5px 6px 5px 10px; font-size:13px; font-family:var(--mono);
+}
+.del { background:none; border:0; padding:2px; line-height:0; color:var(--muted); border-radius:6px; }
+.del svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2.6; stroke-linecap:round; }
+.del:hover { color:var(--coral); background:var(--coral-soft); }
+
+.rec {
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  padding:11px 0; border-top:1px solid var(--line);
+}
+.rec:first-child { border-top:0; }
+.rec b { display:block; font-size:14px; }
+.rec span { font-size:11.5px; color:var(--muted); }
+.rec-v { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--volt); text-align:right; flex:none; }
+.rec-v i { display:block; font-style:normal; font-size:11px; color:var(--muted); font-weight:500; }
+
+.traincard .tc-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:4px 0 10px; }
+.traincard .tc-stats b { display:block; font-family:var(--display); font-size:24px; color:var(--volt); line-height:1.1; }
+.traincard .tc-stats span { font-size:11px; color:var(--muted); }
+
+/* ------------------------------------------------------------------ sheets */
+body.sheet-open { overflow:hidden; }
+.sheet { position:fixed; inset:0; z-index:60; display:flex; align-items:flex-end; justify-content:center; }
+.sheet-back { position:absolute; inset:0; background:rgba(4,5,8,.72); backdrop-filter:blur(3px); }
+.sheet-body {
+  position:relative; width:100%; max-width:480px; max-height:92dvh; overflow-y:auto;
+  background:var(--bg-2); border:1px solid var(--line-2); border-bottom:0;
+  border-radius:26px 26px 0 0; padding:10px 18px calc(22px + env(safe-area-inset-bottom));
+  animation:sheetUp .22s cubic-bezier(.22,1,.36,1);
+}
+@keyframes sheetUp { from { transform:translateY(16px); } }
+.sheet-grab { width:40px; height:4px; border-radius:2px; background:var(--line-2); margin:2px auto 12px; }
+.sheet-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
+.sheet-head h3 { font-size:21px; }
+.iconbtn {
+  flex:none; width:36px; height:36px; border-radius:12px; border:1px solid var(--line-2);
+  background:var(--card); display:grid; place-items:center; color:var(--text-2);
+}
+.iconbtn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:round; }
+
+.search {
+  width:100%; min-height:50px; padding:0 16px; border-radius:15px;
+  background:var(--card); border:1px solid var(--line-2); color:var(--text); font-size:16px;
+}
+.search::placeholder { color:var(--muted); }
+
+.chiprow { display:flex; gap:7px; overflow-x:auto; padding:12px 0; scrollbar-width:none; }
+.chiprow::-webkit-scrollbar { display:none; }
+.chiprow .chip {
+  flex:none; padding:8px 14px; border-radius:999px; font-size:13px; font-weight:700;
+  background:var(--card); border:1px solid var(--line-2); color:var(--text-2);
+}
+.chiprow .chip.on { background:var(--volt); border-color:var(--volt); color:var(--volt-ink); }
+
+.picklist { max-height:46dvh; overflow-y:auto; margin:0 -4px; }
+.picklabel {
+  font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+  margin:12px 4px 6px; font-weight:800;
+}
+.picknone { color:var(--muted); font-size:14px; padding:18px 4px; }
+.pickrow {
+  width:100%; text-align:left; padding:11px 12px; border-radius:13px;
+  background:transparent; border:0; display:block;
+}
+.pickrow:hover, .pickrow:focus-visible { background:var(--card); }
+.pickname { display:block; font-size:15px; font-weight:700; }
+.pickmeta { display:block; font-size:11.5px; color:var(--muted); text-transform:capitalize; }
+
+.lastset {
+  font-size:13px; color:var(--text-2); background:var(--card); border:1px solid var(--line);
+  border-radius:12px; padding:10px 13px; margin-bottom:14px;
+}
+.lastset b { color:var(--volt); font-family:var(--mono); }
+
+.setfields { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.setfields .num[hidden] { display:none; }
+.setfields .num {
+  position:relative; background:var(--card); border:1px solid var(--line-2);
+  border-radius:16px; padding:10px 14px 8px; display:block;
+}
+.setfields .num > span {
+  display:block; font-size:11px; color:var(--muted); font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase;
+}
+.setfields .num input {
+  width:100%; background:none; border:0; padding:0; font-family:var(--display);
+  font-size:30px; font-weight:800; letter-spacing:-.02em;
+}
+.setfields .num input:focus { outline:none; }
+.setfields .num i {
+  position:absolute; right:14px; bottom:12px; font-style:normal;
+  font-size:13px; color:var(--muted); font-weight:700;
+}
+.setfields .num input::-webkit-outer-spin-button,
+.setfields .num input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.setfields .num input[type=number] { -moz-appearance:textfield; }
+
+.steprow { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.steprow > span { width:34px; font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; }
+.step {
+  flex:1; min-height:42px; border-radius:12px; background:var(--card-2);
+  border:1px solid var(--line-2); color:var(--text); font-weight:800; font-size:14px;
+  font-family:var(--mono);
+}
+.step:active { transform:scale(.96); }
+.flashed { background:var(--lime) !important; color:var(--volt-ink) !important; }
+
+.todayset { margin-top:14px; }
+.todayrow {
+  display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--card);
+  border:1px solid var(--line); border-radius:12px; margin-bottom:6px;
+}
+.todayrow > span {
+  width:20px; height:20px; border-radius:7px; background:var(--card-3);
+  display:grid; place-items:center; font-size:11px; color:var(--muted); font-weight:800; flex:none;
+}
+.todayrow b { flex:1; font-family:var(--mono); font-size:14px; }
+
+/* ------------------------------------------------------------- the record */
+.prpop {
+  position:fixed; inset:0; z-index:80; display:grid; place-items:center; padding:24px;
+  background:rgba(4,5,8,.8); backdrop-filter:blur(5px);
+}
+.prcard {
+  position:relative; width:100%; max-width:340px; text-align:center; overflow:hidden;
+  background:var(--card); border:1px solid var(--volt); border-radius:var(--r-lg);
+  padding:30px 22px 22px; box-shadow:0 30px 80px -24px rgba(204,255,63,.45);
+  animation:prIn .34s cubic-bezier(.2,1.3,.4,1);
+}
+@keyframes prIn { from { transform:scale(.86); opacity:0; } }
+.prburst {
+  position:absolute; inset:-40% -40% auto; height:220px; pointer-events:none;
+  background:radial-gradient(closest-side, rgba(204,255,63,.3), transparent 70%);
+  animation:prPulse 1.8s ease-out infinite;
+}
+@keyframes prPulse { 0%,100% { opacity:.5; } 50% { opacity:1; } }
+.prkicker {
+  position:relative; font-size:11px; font-weight:900; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--volt);
+}
+.prcard h2 { position:relative; font-size:24px; margin:6px 0 2px; }
+.prvalue {
+  position:relative; font-family:var(--display); font-size:40px; font-weight:800;
+  letter-spacing:-.03em; line-height:1.1; margin:8px 0 2px;
+}
+.prwas { position:relative; font-size:13px; color:var(--muted); }
+.prex { position:relative; font-size:13px; color:var(--text-2); margin:10px 0 18px; font-weight:700; }
+
+@media (prefers-reduced-motion:reduce) {
+  .sheet-body, .prcard, .prburst { animation:none; }
+}

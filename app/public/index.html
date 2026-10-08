@@ -11,6 +11,16 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
 
+<!-- Installable: on Android this comes from the manifest, on iOS it does not -
+     Safari ignores the manifest's icons and name and reads these instead. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="bodycomp">
+<meta name="description" content="Body fat and lean mass from two photos, validated against DXA, plus a training log with personal records. Everything runs on your device.">
+
 <!-- The module graph is three levels deep, so the browser discovers it one
      level per round trip: app.js, then its nine imports, then theirs. Naming
      the leaves here starts them all in the first wave. The manifest is the
@@ -101,6 +111,10 @@
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
       <button class="btn secondary js-needs-models" type="button" id="sample" disabled>See a demo result</button>
+      <button class="btn ghost" type="button" data-go="train">
+        <svg viewBox="0 0 24 24"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>
+        Log a workout
+      </button>
     </div>
     <p class="fine">A fitness estimate, not a medical device.</p>
   </section>
@@ -439,6 +453,17 @@
 
     <!-- progress -->
     <div data-panel="progress" hidden>
+      <div class="card traincard">
+        <div class="card-head"><h3>Training</h3><span class="pill" id="tc-streak"></span></div>
+        <div class="tc-stats">
+          <div><b id="tc-sets">0</b><span>sets this week</span></div>
+          <div><b id="tc-vol">0</b><span>kg moved</span></div>
+          <div><b id="tc-ex">0</b><span>exercises tracked</span></div>
+        </div>
+        <p class="sub" id="tc-note"></p>
+        <button class="btn ghost" type="button" data-go="train">Open my training log</button>
+      </div>
+
       <div class="card">
         <div class="card-head"><h3>Crew board</h3><span class="pill" id="crew-count">--</span></div>
         <ol class="crew" id="crew-list"></ol>
@@ -514,6 +539,112 @@
     </div>
   </section>
 
+  <!-- ================================================================== train -->
+  <section class="screen" data-screen="train" hidden>
+    <div class="screen-head">
+      <p class="kicker">Training log</p>
+      <h2>What did you lift?</h2>
+    </div>
+
+    <div class="trainbar">
+      <div class="statlet"><b id="t-streak">0</b><span>day streak</span></div>
+      <div class="statlet"><b id="t-week-sets">0</b><span>sets this week</span></div>
+      <div class="statlet"><b id="t-week-vol">0</b><span>kg moved</span></div>
+    </div>
+
+    <button class="btn primary big" type="button" id="t-add">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      Log a set
+    </button>
+
+    <div id="t-empty" class="card empty" hidden>
+      <h3>Nothing logged yet</h3>
+      <p class="sub">Add your first set and the app starts tracking records for it. Nothing
+      counts as a personal best until there's something to beat &mdash; so your first set of an
+      exercise is just a baseline.</p>
+    </div>
+
+    <div id="t-sessions"></div>
+
+    <div class="card" id="t-records-card" hidden>
+      <div class="card-head"><h3>Your records</h3><span class="pill" id="t-records-count"></span></div>
+      <div id="t-records"></div>
+    </div>
+
+    <p class="fine">Logged on this device only, like everything else here.
+      <button class="linkish" type="button" id="t-clear">Delete my training log</button>
+    </p>
+  </section>
+
+</div>
+
+<!-- ====================================================== exercise picker -->
+<div class="sheet" id="picker" hidden>
+  <div class="sheet-back" data-close-picker></div>
+  <div class="sheet-body" role="dialog" aria-modal="true" aria-label="Choose an exercise">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <h3>Choose an exercise</h3>
+      <button class="iconbtn" type="button" data-close-picker aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <input id="pick-search" class="search" type="search" placeholder="Search 274 exercises" autocomplete="off">
+    <div class="chiprow" id="pick-muscles"></div>
+    <div class="picklist" id="pick-list"></div>
+  </div>
+</div>
+
+<!-- ============================================================ set entry -->
+<div class="sheet" id="setsheet" hidden>
+  <div class="sheet-back" data-close-set></div>
+  <div class="sheet-body" role="dialog" aria-modal="true" aria-labelledby="set-name">
+    <div class="sheet-grab"></div>
+    <div class="sheet-head">
+      <div>
+        <h3 id="set-name">Exercise</h3>
+        <p class="sub" id="set-sub"></p>
+      </div>
+      <button class="iconbtn" type="button" data-close-set aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <p class="lastset" id="set-last" hidden></p>
+
+    <div class="setfields" id="set-fields">
+      <label class="num" id="f-kg"><span>Weight</span>
+        <input id="in-kg" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0"><i>kg</i>
+      </label>
+      <label class="num" id="f-reps"><span>Reps</span>
+        <input id="in-reps" type="number" inputmode="numeric" step="1" min="0" placeholder="0"><i></i>
+      </label>
+      <label class="num" id="f-time"><span>Time</span>
+        <input id="in-time" type="number" inputmode="numeric" step="1" min="0" placeholder="0"><i>sec</i>
+      </label>
+      <label class="num" id="f-dist"><span>Distance</span>
+        <input id="in-dist" type="number" inputmode="numeric" step="1" min="0" placeholder="0"><i>m</i>
+      </label>
+    </div>
+
+    <div class="setsteps" id="set-steps"></div>
+
+    <button class="btn primary big" type="button" id="set-save">Save set</button>
+    <div class="todayset" id="set-today"></div>
+  </div>
+</div>
+
+<!-- ================================================================== a PR -->
+<div class="prpop" id="prpop" hidden aria-live="polite">
+  <div class="prcard" role="status">
+    <div class="prburst" aria-hidden="true"></div>
+    <p class="prkicker" id="pr-kicker">New personal record</p>
+    <h2 id="pr-title">Heaviest ever</h2>
+    <p class="prvalue" id="pr-value"></p>
+    <p class="prwas" id="pr-was"></p>
+    <p class="prex" id="pr-ex"></p>
+    <button class="btn primary" type="button" id="pr-ok">Let's go</button>
+  </div>
 </div>
 
 <script type="module" src="js/app.js"></script>

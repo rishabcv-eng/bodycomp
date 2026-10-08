@@ -362,6 +362,31 @@ localhost every one of these read as ~100 ms, which is why they survived so long
 blip must not brick the camera for the rest of the session. `boot_test.mjs`
 pins the sharing and the retry, 10 checks.
 
+## The training log
+
+`js/exercises.js` is a 274-row table — name, muscle, equipment, metric — parsed
+at load. The metric (`load`, `reps`, `time`) decides the input fields and which
+records exist, which is what keeps a plank from competing on weight.
+
+`js/workouts.js` holds the records engine and is pure apart from an injectable
+store, so all 65 checks run under Node. Sets are stored flat with their own
+timestamps and sessions are derived by calendar day: a stored "current session"
+is state that can be left open, double-opened or orphaned by a refresh, and none
+of those bugs can exist if the session is only a view.
+
+Only `weight` and `e1rm` raise a popup. A back-off set can top the rep and
+volume records without being news, and neither of those two can be reached by
+lifting something lighter. The first set of any exercise is never a record.
+
+### A bug the log found in the scanner
+
+`readCrew()` invents a profile when the device is new, with a fresh random id —
+and never wrote it down. Scan history hid this for months because `saveScan`
+persists the crew as a side effect of saving. The training log reads the active
+profile id without ever saving a scan, so every set was filed under a different
+person and no record ever had any history to beat. `ensureCrew()` now persists
+the invented profile, and `progress_test.mjs` pins the id across calls.
+
 ## Camera framing
 
 `zoomRange` reports what the hardware actually exposes and drives a slider;
