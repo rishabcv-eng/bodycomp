@@ -3,6 +3,7 @@
 // 15 MB file downloads several times, or one dropped request breaks the camera
 // until the page is reloaded.
 import { once } from "./public/js/once.js";
+import { readFileSync } from "node:fs";
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = "") => {
@@ -56,6 +57,42 @@ const mark = n => marks.push(n);
      results.every(r => r.status === "rejected" && r.reason.message === "nope"));
   await step().catch(() => {});
   ok("and it retries afterwards", calls === 2, `calls=${calls}`);
+}
+
+/* ------------------------------------------------ the preload list stays true --- */
+/* index.html names the module graph's leaves so the browser does not discover
+ * it one level per round trip. That list is a hand-written copy of what the
+ * code imports, and a copy drifts: adding the training log cost two extra round
+ * trips on the live site purely because three new modules were not in it.
+ *
+ * Walking the real graph is the only version of this check that cannot rot. */
+{
+  const dir = new URL("./public/js/", import.meta.url);
+  const html = readFileSync(new URL("./public/index.html", import.meta.url), "utf8");
+  const preloaded = new Set(
+    [...html.matchAll(/<link rel="modulepreload" href="js\/([^"]+)"/g)].map(m => m[1]));
+
+  // Follow static imports from the entry point, exactly as the browser would.
+  const reached = new Set();
+  const walk = file => {
+    if (reached.has(file)) return;
+    reached.add(file);
+    let src;
+    try { src = readFileSync(new URL(file, dir), "utf8"); } catch { return; }
+    for (const m of src.matchAll(/^import\s[^;]*?from\s+["']\.\/([^"']+)["']/gm)) walk(m[1]);
+  };
+  walk("app.js");
+
+  const missing = [...reached].filter(f => !preloaded.has(f)).sort();
+  const stale = [...preloaded].filter(f => !reached.has(f)).sort();
+  ok("every statically imported module is preloaded", missing.length === 0,
+     missing.length ? `missing: ${missing.join(", ")}` : `${reached.size} modules`);
+  ok("and nothing is preloaded that is no longer imported", stale.length === 0,
+     stale.length ? `stale: ${stale.join(", ")}` : "");
+  // The MediaPipe wrapper is deliberately absent: it is a dynamic import, and
+  // preloading it would put 39 KB back on the critical path it was moved off.
+  ok("the dynamically imported vision bundle stays off the list",
+     !html.includes('modulepreload" href="vendor/vision_bundle'));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

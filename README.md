@@ -93,7 +93,7 @@ is how wrong numbers ship:
 | `overlay_test.mjs` | contour, mesh and chord geometry | 26 checks pass |
 | `plan_test.mjs` | plan maths and safety floors | 30 checks pass |
 | `progress_test.mjs` | history, crew board, goals, ranking | 61 checks pass |
-| `boot_test.mjs` | lazy model loading, retry after failure | 10 checks pass |
+| `boot_test.mjs` | lazy loading, retry, preload-vs-import graph | 13 checks pass |
 | `workouts_test.mjs` | PR engine, sessions, training streak | 65 checks pass |
 
 ### A bug worth keeping
