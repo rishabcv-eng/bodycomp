@@ -13,6 +13,7 @@ import { bodyFatAge, nextMilestone, etaTo, etaLabel } from "./goals.js";
 import { shareResult } from "./share.js";
 import { renderTrain, wireTrain } from "./train.js";
 import { summary as trainSummary } from "./workouts.js";
+import { wireInstall } from "./install.js";
 
 const $ = id => document.getElementById(id);
 const SCREENS = ["welcome", "profile", "capture", "results", "train"];
@@ -377,9 +378,38 @@ export function renderTrainCard() {
       : `${s.weekDays} ${s.weekDays === 1 ? "day" : "days"} trained this week, ${s.totalSets} sets logged all time.`;
 }
 
+/* Screens the app may open directly from a URL.
+ *
+ * The home-screen shortcuts launch at #train and #profile, and only these two
+ * are allowed in: #capture would drop someone into the camera before the app
+ * knows their height, which every measurement is scaled by, and #results has
+ * nothing to show until a scan has actually run. */
+const DEEP_LINKABLE = new Set(["train", "profile"]);
+
 function wire() {
+  // Read the launch hash *before* the history is reset - the line below wipes
+  // the fragment, so asking afterwards always returned an empty string and
+  // both shortcuts silently opened the welcome screen.
+  const wanted = location.hash.replace("#", "");
+
   history.replaceState({ screen: "welcome" }, "", location.pathname + location.search);
-  addEventListener("popstate", e => go(e.state?.screen || "welcome", { push: false }));
+  /* Every entry this app creates carries its screen - pushState on navigation,
+   * replaceState for the first one - so a popstate without state did not come
+   * from the back gesture. It came from a fragment being changed underneath us,
+   * and treating that as "go home" bounced the user off the screen they were
+   * on. Ignoring it leaves the hashchange handler below to decide. */
+  addEventListener("popstate", e => {
+    if (e.state?.screen) go(e.state.screen, { push: false });
+  });
+
+  /* A shortcut tapped while the app is already open does not reload it - the
+   * system just points the running window at the new fragment. That is a
+   * same-document navigation, so the only signal is hashchange, and without
+   * this the shortcut would quietly land on the welcome screen. */
+  addEventListener("hashchange", () => {
+    const next = location.hash.replace("#", "");
+    if (DEEP_LINKABLE.has(next)) go(next, { push: false });
+  });
 
   $("back").addEventListener("click", () => history.back());
 
@@ -450,9 +480,12 @@ function wire() {
 
   bindChips();
   renderWho();
+  // Last, so the screen it opens on is not undone by the setup above.
+  if (DEEP_LINKABLE.has(wanted)) go(wanted, { push: false });
   // A set logged against the active profile changes the training card on the
   // results screen too, so the log tells us rather than us polling for it.
   wireTrain({ onChange: renderTrainCard });
+  wireInstall({ root: $("install") });
   renderTrainCard();
 }
 

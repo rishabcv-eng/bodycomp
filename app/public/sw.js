@@ -14,7 +14,7 @@
  * only when the cache version changes.
  */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL = `bodycomp-shell-${VERSION}`;
 const HEAVY = `bodycomp-heavy-${VERSION}`;
 const KEEP = new Set([SHELL, HEAVY]);
@@ -41,6 +41,9 @@ const SHELL_URLS = [
   "./js/train.js",
   "./js/workouts.js",
   "./js/exercises.js",
+  "./js/install.js",
+  "./icons/icon-192.png",
+  "./icons/apple-touch-icon.png",
   "./models/manifest.json",
   "./models/percentiles.json",
 ];

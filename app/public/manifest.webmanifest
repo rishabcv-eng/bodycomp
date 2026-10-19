@@ -1,25 +1,55 @@
 {
+  "id": "/bodycomp/",
   "name": "bodycomp - body fat and training log",
   "short_name": "bodycomp",
-  "description": "Body fat and lean mass from two photos, plus a training log with personal records. Everything runs on your device.",
+  "description": "Body fat and lean mass from two photos, validated against clinical DXA scans, plus a training log with personal records. Everything runs on your device - no upload, no account.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#07080B",
   "theme_color": "#07080B",
+  "lang": "en",
+  "dir": "ltr",
   "categories": ["health", "fitness", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
     { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/welcome.png",
+      "sizes": "750x1624",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Body fat and lean mass from two photos"
+    },
+    {
+      "src": "screenshots/training-log.png",
+      "sizes": "750x1624",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Log every set and beat your own records"
+    }
   ],
   "shortcuts": [
     {
       "name": "Log a set",
       "short_name": "Log a set",
       "url": "./index.html#train",
-      "description": "Jump straight to the training log"
+      "description": "Jump straight to the training log",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Scan my body",
+      "short_name": "Scan",
+      "url": "./index.html#profile",
+      "description": "Start a body composition scan",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

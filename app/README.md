@@ -387,6 +387,35 @@ profile id without ever saving a scan, so every set was filed under a different
 person and no record ever had any history to beat. `ensureCrew()` now persists
 the invented profile, and `progress_test.mjs` pins the id across calls.
 
+## Installing
+
+`js/install.js` decides what to offer, because the platforms need opposite
+things. Android fires `beforeinstallprompt`, so there is a real Install button;
+iOS exposes no API, so it gets instructions. Chrome and Firefox on iOS are
+Safari underneath but their share sheets lack Add to Home Screen, so they are
+sent to Safari. The rule: never render a button that cannot install anything.
+
+The detection is pure and tested against real user-agent strings, including
+iPadOS, which has claimed to be a Mac since version 13 - the tell is a Mac
+reporting touch points.
+
+Three failures that only exist once installed:
+
+- `env(safe-area-inset-top)` was never used, and `black-translucent` puts the
+  page deliberately under the status bar, so the back button sat behind the
+  iPhone clock. The top bar now pads by the inset, which is 0 in a browser tab.
+- `wire()` opened with a `replaceState` that strips the fragment, so reading
+  `location.hash` afterwards always returned empty and both home-screen
+  shortcuts landed on the welcome screen. The hash is read first now.
+- A shortcut tapped while the app is already open does not reload it; the
+  system repoints the running window, which is a same-document navigation. A
+  `hashchange` handler routes it, and `popstate` now ignores stateless events
+  so a fragment change cannot bounce someone off the screen they were on.
+
+`DEEP_LINKABLE` holds the only two screens a URL may open: `#train` and
+`#profile`. `install_test.mjs` asserts every manifest shortcut targets one of
+them, so a shortcut cannot be added that goes nowhere.
+
 ## Camera framing
 
 `zoomRange` reports what the hardware actually exposes and drives a slider;

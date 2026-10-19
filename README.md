@@ -95,6 +95,7 @@ is how wrong numbers ship:
 | `progress_test.mjs` | history, crew board, goals, ranking | 61 checks pass |
 | `boot_test.mjs` | lazy loading, retry, preload-vs-import graph | 13 checks pass |
 | `workouts_test.mjs` | PR engine, sessions, training streak | 65 checks pass |
+| `install_test.mjs` | platform detection, manifest, shortcuts | 40 checks pass |
 
 ### A bug worth keeping
 
@@ -171,16 +172,46 @@ Exercises carry one of three metrics — load, reps or time — and the metric
 decides both the input fields and the records. It is what stops the app
 congratulating someone for holding a *heavier* plank.
 
-## Installable, and it works with no signal
+## Installable on both, and it works with no signal
 
-`manifest.webmanifest` plus `sw.js` make it a home-screen app: on iOS, Share →
-Add to Home Screen gives a standalone app with its own icon. There is no native
-iOS build, and from a Windows machine there cannot be — an App Store binary
-needs macOS, Xcode and a paid Apple developer account. A PWA is the whole of
-what is buildable here, and for this app it costs nothing: camera, models and
-storage all work the same.
+Add to Home Screen on iOS, Install on Android. There is no native iOS build and
+from a Windows machine there cannot be - an App Store binary needs macOS, Xcode
+and a paid Apple developer account. For this app the PWA costs nothing: camera,
+models and storage all behave the same.
 
-The caching mirrors the loading split, for the same reason — precaching
+The two platforms need opposite things, so `js/install.js` decides which:
+
+- **Android** fires `beforeinstallprompt`, so the app shows an **Install**
+  button that does it in one tap. The event is captured by an inline script in
+  `<head>`, because it can fire before the module graph has finished loading.
+- **iOS exposes no install API at all.** Safari can only be told by the user,
+  so iOS gets instructions instead. Chrome and Firefox on iOS are Safari
+  underneath but their share sheets have no Add to Home Screen, so those are
+  told to open Safari. The rule the tests enforce: **never show a button that
+  cannot install anything.**
+
+iPadOS has reported itself as a Mac since version 13, so the only honest tell is
+a Mac claiming touch points - no real Mac does. That is one of 40 checks in
+`install_test.mjs`, which runs against real user-agent strings because neither
+platform's install flow can be exercised from here.
+
+Three things that only break once installed, and so were easy to miss:
+
+| | Symptom | Fix |
+|---|---|---|
+| No `safe-area-inset-top` | Back button under the iPhone clock | Top bar pads by the inset |
+| Hash read after `replaceState` | Both home-screen shortcuts opened the welcome screen | Read the launch hash first |
+| Shortcut tapped while open | Same-document hash change, so no reload | `hashchange` routes it |
+
+Only `#train` and `#profile` are deep-linkable. `#capture` would drop someone
+into the camera before the app knows their height - which every measurement is
+scaled by - and `#results` has nothing to show until a scan has run.
+
+14 iOS launch screens are declared, because iOS matches them on an exact
+device-size and pixel-ratio query and silently ignores anything else; without
+them the app flashes white on open.
+
+The caching mirrors the loading split, for the same reason - precaching
 everything would mean the 25 MB download the lazy loading just removed:
 
 | Cache | Contents | When |

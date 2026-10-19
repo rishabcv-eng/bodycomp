@@ -19,7 +19,36 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="bodycomp">
+
+<!-- Launch screens. iOS shows a white flash without them, and matches on an
+     exact device-size + pixel-ratio media query, so the sizes are enumerated
+     rather than guessed. An unmatched one is simply ignored. -->
+<link rel="apple-touch-startup-image" href="splash/1179x2556.png" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1290x2796.png" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1170x2532.png" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1284x2778.png" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1125x2436.png" media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1242x2688.png" media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/828x1792.png" media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/750x1334.png" media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1242x2208.png" media="(device-width:414px) and (device-height:736px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1206x2622.png" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1320x2868.png" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1536x2048.png" media="(device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/1668x2388.png" media="(device-width:834px) and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+<link rel="apple-touch-startup-image" href="splash/2048x2732.png" media="(device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
 <meta name="description" content="Body fat and lean mass from two photos, validated against DXA, plus a training log with personal records. Everything runs on your device.">
+
+<!-- Chrome can fire beforeinstallprompt before the module graph has finished
+     loading, and the event is only useful if it was caught and its default
+     prevented. Inline and first, so nothing can be missed. -->
+<script>
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    window.__bodycompInstallPrompt = e;
+    window.dispatchEvent(new Event("bodycomp:installable"));
+  });
+</script>
 
 <!-- The module graph is three levels deep, so the browser discovers it one
      level per round trip: app.js, then its nine imports, then theirs. Naming
@@ -42,6 +71,7 @@
 <link rel="modulepreload" href="js/train.js">
 <link rel="modulepreload" href="js/workouts.js">
 <link rel="modulepreload" href="js/exercises.js">
+<link rel="modulepreload" href="js/install.js">
 <link rel="preload" as="fetch" href="models/manifest.json" crossorigin>
 </head>
 <body data-screen="welcome">
@@ -113,13 +143,19 @@
         Start my scan
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
-      <button class="btn secondary js-needs-models" type="button" id="sample" disabled>See a demo result</button>
-      <button class="btn ghost" type="button" data-go="train">
-        <svg viewBox="0 0 24 24"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>
-        Log a workout
-      </button>
+      <!-- Side by side: three stacked full-width buttons made the sticky dock
+           216px tall, which covered the stats row and cut the lede mid-word. -->
+      <div class="cta-pair">
+        <button class="btn secondary js-needs-models" type="button" id="sample" disabled>Demo result</button>
+        <button class="btn secondary" type="button" data-go="train">
+          <svg viewBox="0 0 24 24"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>
+          Log a lift
+        </button>
+      </div>
     </div>
     <p class="fine">A fitness estimate, not a medical device.</p>
+
+    <div class="installcard" id="install" hidden></div>
   </section>
 
   <!-- ================================================================ profile -->
